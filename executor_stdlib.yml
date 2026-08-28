@@ -1,0 +1,550 @@
+---
+name: executor
+base: roblox
+
+globals:
+  # Cache
+  cache.iscached:
+    args:
+      - type: table
+
+  cache.invalidate:
+    args:
+      - type: table
+
+  cache.replace:
+    args:
+      - type: table
+      - type: table
+
+  # Closures
+  checkcaller:
+    args: []
+
+  clonefunction:
+    args:
+      - type: function
+
+  clonefunc:
+    args:
+      - type: function
+
+  getfunctionhash:
+    args:
+      - type: function
+
+  hookfunction:
+    args:
+      - type: function
+      - type: function
+
+  hookmetamethod:
+    args:
+      - type: any
+      - type: string
+      - type: function
+
+  iscclosure:
+    args:
+      - type: function
+
+  isexecutorclosure:
+    args:
+      - type: function
+
+  islclosure:
+    args:
+      - type: function
+
+  newcclosure:
+    args:
+      - type: function
+
+  restorefunction:
+    args:
+      - type: function
+
+  getnamecallmethod:
+    args: []
+
+  # Console
+  rconsoleclear:
+    args: []
+
+  rconsolecreate:
+    args: []
+
+  rconsoledestroy:
+    args: []
+
+  rconsoleinput:
+    args: []
+
+  rconsoleprint:
+    args:
+      - type: string
+
+  rconsolesettitle:
+    args:
+      - type: string
+
+  # Cryptography
+  crypt.base64decode:
+    args:
+      - type: string
+
+  crypt.base64encode:
+    args:
+      - type: string
+
+  crypt.encrypt:
+    args:
+      - type: string
+      - type: string
+      - type: string
+        required: false
+      - type:
+          - "CBC"
+          - "ECB"
+          - "CTR"
+          - "CFB"
+          - "OFB"
+          - "GCM"
+        required: false
+
+  crypt.decrypt:
+    args:
+      - type: string
+      - type: string
+      - type: string
+      - type:
+          - "CBC"
+          - "ECB"
+          - "CTR"
+          - "CFB"
+          - "OFB"
+          - "GCM"
+
+  crypt.generatebytes:
+    args:
+      - type: number
+
+  crypt.generatekey:
+    args: []
+
+  crypt.hash:
+    args:
+      - type: string
+      - type:
+          - "shA"
+          - "sha384"
+          - "sha512"
+          - "md5"
+          - "sha256"
+          - "sha3-224"
+          - "sha3-256"
+          - "sha3-512"
+
+  # Debug extensions
+  debug.getconstant:
+    args:
+      - type: any
+      - type: number
+
+  debug.getconstants:
+    args:
+      - type: any
+
+  debug.getproto:
+    args:
+      - type: any
+      - type: number
+      - type: bool
+        required: false
+
+  debug.getprotos:
+    args:
+      - type: any
+
+  debug.getstack:
+    args:
+      - type: number
+      - type: number
+        required: false
+
+  debug.getupvalue:
+    args:
+      - type: any
+      - type: number
+
+  debug.getupvalues:
+    args:
+      - type: any
+
+  debug.setconstant:
+    args:
+      - type: any
+      - type: number
+      - type: any
+
+  debug.setstack:
+    args:
+      - type: number
+      - type: number
+      - type: any
+
+  debug.setupvalue:
+    args:
+      - type: any
+      - type: number
+      - type: any
+
+  # Drawing
+  Drawing.new:
+    args:
+      - type:
+          - "Line"
+          - "Text"
+          - "Image"
+          - "Circle"
+          - "Square"
+          - "Quad"
+          - "Triangle"
+
+  Drawing.Fonts.UI:
+    property: read-only
+
+  Drawing.Fonts.System:
+    property: read-only
+
+  Drawing.Fonts.Plex:
+    property: read-only
+
+  Drawing.Fonts.Monospace:
+    property: read-only
+
+  cleardrawcache:
+    args: []
+
+  getrenderproperty:
+    args:
+      - type: table
+      - type: string
+
+  isrenderobj:
+    args:
+      - type: any
+
+  setrenderproperty:
+    args:
+      - type: table
+      - type: string
+      - type: any
+
+  # Environment
+  getgc:
+    args:
+      - type: bool
+        required: false
+
+  getgenv:
+    args: []
+
+  getreg:
+    args: []
+
+  getrenv:
+    args: []
+
+  filtergc:
+    args:
+      - type:
+          - "table"
+          - "function"
+      - type: table
+      - type: bool
+        required: false
+
+  # Filesystem
+  appendfile:
+    args:
+      - type: string
+      - type: string
+
+  delfile:
+    args:
+      - type: string
+
+  delfolder:
+    args:
+      - type: string
+
+  getcustomasset:
+    args:
+      - type: string
+
+  isfile:
+    args:
+      - type: string
+
+  isfolder:
+    args:
+      - type: string
+
+  listfiles:
+    args:
+      - type: string
+
+  loadfile:
+    args:
+      - type: string
+
+  makefolder:
+    args:
+      - type: string
+
+  readfile:
+    args:
+      - type: string
+
+  writefile:
+    args:
+      - type: string
+      - type: string
+
+  dofile:
+    args:
+      - type: string
+
+  # Input
+  isrbxactive:
+    args: []
+
+  mouse1click:
+    args: []
+
+  mouse1press:
+    args: []
+
+  mouse1release:
+    args: []
+
+  mouse2click:
+    args: []
+
+  mouse2press:
+    args: []
+
+  mouse2release:
+    args: []
+
+  mousemoveabs:
+    args:
+      - type: number
+      - type: number
+
+  mousemoverel:
+    args:
+      - type: number
+      - type: number
+
+  mousescroll:
+    args:
+      - type: number
+
+  # Instances
+  cloneref:
+    args:
+      - type: table
+
+  clonereference:
+    args:
+      - type: table
+
+  compareinstances:
+    args:
+      - type: table
+      - type: table
+
+  fireclickdetector:
+    args:
+      - type: table
+      - type: number
+        required: false
+      - type:
+          - "MouseClick"
+          - "MouseHoverEnter"
+          - "MouseHoverLeave"
+          - "RightMouseClick"
+        required: false
+
+  fireproximityprompt:
+    args:
+      - type: table
+
+  firetouchinterest:
+    args:
+      - type: table
+      - type: table
+      - type: any
+
+  getcallbackvalue:
+    args:
+      - type: table
+      - type: string
+
+  gethui:
+    args: []
+
+  getinstances:
+    args: []
+
+  getnilinstances:
+    args: []
+
+  isscriptable:
+    args:
+      - type: table
+      - type: string
+
+  setrbxclipboard:
+    args:
+      - type: string
+
+  # Metatable
+  getrawmetatable:
+    args:
+      - type: any
+
+  isreadonly:
+    args:
+      - type: table
+
+  setrawmetatable:
+    args:
+      - type: any
+      - type: table
+
+  setreadonly:
+    args:
+      - type: table
+      - type: bool
+
+  # Miscellaneous
+  identifyexecutor:
+    args: []
+
+  request:
+    args:
+      - type: table
+
+  setclipboard:
+    args:
+      - type: string
+
+  setfpscap:
+    args:
+      - type: number
+
+  # Reflection
+  gethiddenproperty:
+    args:
+      - type: table
+      - type: string
+
+  getthreadidentity:
+    args: []
+
+  sethiddenproperty:
+    args:
+      - type: table
+      - type: string
+      - type: any
+
+  setscriptable:
+    args:
+      - type: table
+      - type: string
+      - type: bool
+
+  setthreadidentity:
+    args:
+      - type: number
+
+  # Scripts
+  getcallingscript:
+    args: []
+
+  getloadedmodules:
+    args:
+      - type: bool
+        required: false
+
+  getrunningscripts:
+    args: []
+
+  getscriptbytecode:
+    args:
+      - type: table
+
+  getscriptclosure:
+    args:
+      - type: table
+
+  getscripthash:
+    args:
+      - type: table
+
+  getscripts:
+    args: []
+
+  getsenv:
+    args:
+      - type: table
+
+  loadstring:
+    args:
+      - type: string
+      - type: string
+        required: false
+
+  # Signals
+  firesignal:
+    args:
+      - type: table
+      - type: "..."
+        required: false
+
+  getconnections:
+    args:
+      - type: table
+
+  lz4compress:
+    args:
+      - type: string
+
+  lz4decompress:
+    args:
+      - type: string
+      - type: number
+
+  messagebox:
+    args:
+      - type: string
+      - type: string
+      - type: number
+
+  queue_on_teleport:
+    args:
+      - type: string
+
+  replicatesignal:
+    args:
+      - type: table
+      - type: "..."
+        required: false
+
+  # WebSocket
+  WebSocket.connect:
+    args:
+      - type: string
