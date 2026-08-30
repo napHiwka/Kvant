@@ -20,6 +20,7 @@ Library.Config = {
 			Stroke = Color3.fromRGB(50, 50, 56),
 			Text = Color3.fromRGB(240, 240, 242),
 			SubText = Color3.fromRGB(160, 160, 168),
+			AccentText = Color3.fromRGB(255, 255, 255),
 		},
 		Darker = {
 			Background = Color3.fromRGB(9, 9, 11),
@@ -28,6 +29,7 @@ Library.Config = {
 			Stroke = Color3.fromRGB(26, 26, 29),
 			Text = Color3.fromRGB(235, 235, 238),
 			SubText = Color3.fromRGB(130, 130, 138),
+			AccentText = Color3.fromRGB(255, 255, 255),
 		},
 		Light = {
 			Background = Color3.fromRGB(250, 250, 251),
@@ -36,6 +38,7 @@ Library.Config = {
 			Stroke = Color3.fromRGB(222, 222, 227),
 			Text = Color3.fromRGB(22, 22, 25),
 			SubText = Color3.fromRGB(110, 110, 118),
+			AccentText = Color3.fromRGB(255, 255, 255),
 		},
 	},
 	Text = { Title = 17, Label = 16, Body = 15, Small = 14 },
@@ -45,10 +48,6 @@ Library.Config = {
 		Regular = Font.new("rbxassetid://12187365364", Enum.FontWeight.Regular),
 	},
 }
-
-for _, t in Library.Config.Themes do -- TODO: Fix this (Just insert properly)
-	t.AccentText = Color3.fromRGB(255, 255, 255)
-end
 
 Library.CurrentTheme = Library.Config.Themes.Darker
 function Library:SetTheme(n)
@@ -68,6 +67,7 @@ local Icons = {
 	Settings = "rbxassetid://80758916183665", -- settings
 	Dropdown = "rbxassetid://134243273101015", -- chevron-down
 	Color = "rbxassetid://86350350950064", -- palette
+	Input = "rbxassetid://107551944047171" -- text-cursor-input
 }
 
 function Library:CreateWindow(name, iconId, sideTabs)
@@ -75,6 +75,24 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	local theme = Library.CurrentTheme
 	local T, F = Library.Config.Text, Library.Config.Fonts
 	local icons, iconN, iconsOn = {}, 0, true
+
+	local reduceMotion = false
+	local function tw(inst, info, props)
+		if reduceMotion then
+			for k, v in props do
+				inst[k] = v
+			end
+		else
+			TweenService:Create(inst, info, props):Play()
+		end
+	end
+
+	local conns = {}
+	local function conn(sig, fn)
+		local c = sig:Connect(fn)
+		conns[#conns + 1] = c
+		return c
+	end
 
 	local function mkicon(id, kind, parent, size)
 		local img_id = id
@@ -126,7 +144,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	-- Input dispatcher
 	local activeMove = nil
 	local dragMoved = false
-	UserInputService.InputChanged:Connect(function(i)
+	conn(UserInputService.InputChanged, function(i)
 		if
 			activeMove
 			and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch)
@@ -134,7 +152,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			activeMove(i.Position)
 		end
 	end)
-	UserInputService.InputEnded:Connect(function(i)
+	conn(UserInputService.InputEnded, function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			activeMove = nil
 		end
@@ -162,9 +180,9 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	gui.ResetOnSpawn = false
 	gui.Parent = gethui and gethui() or cloneref(game:FindFirstChild('CoreGui')) or cloneref(game:GetService("Players")).LocalPlayer:WaitForChild("PlayerGui")
 
-	local winSize = sideTabs and UDim2.new(0.44, 0, 0.58, 0) or UDim2.new(0.36, 0, 0.52, 0)
-	local winMin = sideTabs and Vector2.new(460, 360) or Vector2.new(380, 320)
-	local winMax = sideTabs and Vector2.new(640, 480) or Vector2.new(560, 440)
+	local winSize = sideTabs and UDim2.new(0.4, 0, 0.64, 0) or UDim2.new(0.3, 0, 0.6, 0)
+	local winMin = sideTabs and Vector2.new(440, 440) or Vector2.new(320, 400)
+	local winMax = sideTabs and Vector2.new(560, 560) or Vector2.new(420, 520)
 
 	local main = Instance.new("Frame")
 	main.Name = rname()
@@ -189,6 +207,22 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	local mainStroke = Instance.new("UIStroke")
 	mainStroke.Color = theme.Stroke
 	mainStroke.Parent = main
+
+	local uiScale = Instance.new("UIScale")
+	uiScale.Parent = main
+
+	local notifHolder = Instance.new("Frame")
+	notifHolder.Name = rname()
+	notifHolder.BackgroundTransparency = 1
+	notifHolder.AnchorPoint = Vector2.new(1, 1)
+	notifHolder.Position = UDim2.new(1, -16, 1, -16)
+	notifHolder.Size = UDim2.new(0, 260, 1, -32)
+	notifHolder.Parent = gui
+	local notifList = Instance.new("UIListLayout")
+	notifList.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	notifList.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	notifList.Padding = UDim.new(0, 8)
+	notifList.Parent = notifHolder
 
 	local topbar = Instance.new("Frame")
 	topbar.Name = rname()
@@ -233,14 +267,15 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	local controls = Instance.new("Frame")
 	controls.Name = rname()
 	controls.BackgroundTransparency = 1
-	controls.Size = UDim2.new(0, 70, 1, 0)
-	controls.Position = UDim2.new(1, -82, 0, 0)
+	controls.Size = UDim2.new(0, 0, 1, 0)
+	controls.Position = UDim2.new(1, -12, 0, 0)
 	controls.Parent = topbar
 
 	local controlsList = Instance.new("UIListLayout")
 	controlsList.FillDirection = Enum.FillDirection.Horizontal
 	controlsList.VerticalAlignment = Enum.VerticalAlignment.Center
 	controlsList.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	controlsList.SortOrder = Enum.SortOrder.LayoutOrder
 	controlsList.Padding = UDim.new(0, 10)
 	controlsList.Parent = controls
 
@@ -250,6 +285,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	minBtn.Size = UDim2.new(0, 22, 0, 22)
 	minBtn.Image = "rbxassetid://10137941941"
 	minBtn.ImageColor3 = theme.Text
+	minBtn.LayoutOrder = 1
 	minBtn.Parent = controls
 
 	local closeBtn = Instance.new("ImageButton")
@@ -259,6 +295,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	closeBtn.Image = "rbxassetid://10137832201"
 	closeBtn.ImageColor3 = theme.Text
 	closeBtn.Visible = false
+	closeBtn.LayoutOrder = 2
 	closeBtn.Parent = controls
 
 	drag(main, topbar)
@@ -270,7 +307,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		tabHolder.BackgroundColor3 = theme.Secondary
 		tabHolder.BorderSizePixel = 0
 		tabHolder.Position = UDim2.new(0, 0, 0, 44)
-		tabHolder.Size = UDim2.new(0.32, 0, 1, -44)
+		tabHolder.Size = UDim2.new(0.36, 0, 1, -44)
 		tabHolder.ScrollingDirection = Enum.ScrollingDirection.Y
 		tabHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		tabHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -279,6 +316,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		tabHolder.Parent = main
 
 		local tabList = Instance.new("UIListLayout")
+		tabList.SortOrder = Enum.SortOrder.LayoutOrder
 		tabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		tabList.Padding = UDim.new(0, 8)
 		tabList.Parent = tabHolder
@@ -290,8 +328,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		pageHolder = Instance.new("Frame")
 		pageHolder.Name = rname()
 		pageHolder.BackgroundTransparency = 1
-		pageHolder.Position = UDim2.new(0.32, 0, 0, 44)
-		pageHolder.Size = UDim2.new(0.68, 0, 1, -44)
+		pageHolder.Position = UDim2.new(0.36, 0, 0, 44)
+		pageHolder.Size = UDim2.new(0.64, 0, 1, -44)
 		pageHolder.Parent = main
 	else
 		tabHolder = Instance.new("ScrollingFrame")
@@ -310,6 +348,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		local tabList = Instance.new("UIListLayout")
 		tabList.FillDirection = Enum.FillDirection.Horizontal
 		tabList.VerticalAlignment = Enum.VerticalAlignment.Center
+		tabList.SortOrder = Enum.SortOrder.LayoutOrder
 		tabList.Padding = UDim.new(0, 8)
 		tabList.Parent = tabHolder
 
@@ -366,14 +405,14 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	local function toggleWindow()
 		minimized = not minimized
 		if minimized then
-			TweenService:Create(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+			tw(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 })
 			main.Visible = false
 			pill.Visible = true
 		else
 			main.Visible = true
 			main.Size = UDim2.new(winSize.X.Scale, winSize.X.Offset, 0, 44)
 			pill.Visible = false
-			TweenService:Create(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
+			tw(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 })
 		end
 	end
 	minBtn.Activated:Connect(toggleWindow)
@@ -385,12 +424,66 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		toggleWindow()
 	end)
 	closeBtn.Activated:Connect(function()
+		for i = 1, #conns do
+			conns[i]:Disconnect()
+		end
 		gui:Destroy()
 	end)
 
 	local tabBtns, tabLabels, tabPages, tabN = {}, {}, {}, 0
 	local firstUserActivated
 	local window = {}
+
+	function window:Notify(text, duration)
+		duration = duration or 3
+		local n = Instance.new("Frame")
+		n.Name = rname()
+		n.BackgroundColor3 = theme.Secondary
+		n.BackgroundTransparency = 1
+		n.Size = UDim2.new(1, 0, 0, 0)
+		n.AutomaticSize = Enum.AutomaticSize.Y
+		n.Parent = notifHolder
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 8)
+		c.Parent = n
+		local s = Instance.new("UIStroke")
+		s.Color = theme.Stroke
+		s.Transparency = 1
+		s.Parent = n
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 14)
+		pad.PaddingRight = UDim.new(0, 14)
+		pad.PaddingTop = UDim.new(0, 10)
+		pad.PaddingBottom = UDim.new(0, 10)
+		pad.Parent = n
+		local l = Instance.new("TextLabel")
+		l.BackgroundTransparency = 1
+		l.Size = UDim2.new(1, 0, 0, 0)
+		l.AutomaticSize = Enum.AutomaticSize.Y
+		l.FontFace = F.Medium
+		l.Text = text
+		l.TextColor3 = theme.Text
+		l.TextSize = T.Body
+		l.TextWrapped = true
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.TextTransparency = 1
+		l.Parent = n
+
+		tw(n, TweenInfo.new(0.18), { BackgroundTransparency = 0 })
+		tw(s, TweenInfo.new(0.18), { Transparency = 0 })
+		tw(l, TweenInfo.new(0.18), { TextTransparency = 0 })
+
+		task.delay(duration, function()
+			if not n.Parent then
+				return
+			end
+			tw(n, TweenInfo.new(0.2), { BackgroundTransparency = 1 })
+			tw(s, TweenInfo.new(0.2), { Transparency = 1 })
+			tw(l, TweenInfo.new(0.2), { TextTransparency = 1 })
+			task.wait(0.2)
+			n:Destroy()
+		end)
+	end
 
 	function window:Tab(tabName, tabIcon)
 		local btn = Instance.new("TextButton")
@@ -447,6 +540,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		page.Parent = pageHolder
 
 		local list = Instance.new("UIListLayout")
+		list.SortOrder = Enum.SortOrder.LayoutOrder
 		list.Padding = UDim.new(0, 10)
 		list.Parent = page
 
@@ -606,15 +700,15 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			clickBtn.Text = ""
 			clickBtn.Parent = f
 			clickBtn.Activated:Connect(function()
-				TweenService:Create(f, TweenInfo.new(0.08), { BackgroundColor3 = theme.Accent }):Play()
+				tw(f, TweenInfo.new(0.08), { BackgroundColor3 = theme.Accent })
 				task.delay(0.12, function()
-					TweenService:Create(f, TweenInfo.new(0.15), { BackgroundColor3 = theme.Secondary }):Play()
+					tw(f, TweenInfo.new(0.15), { BackgroundColor3 = theme.Secondary })
 				end)
 				callback()
 			end)
 		end
 
-		function tab:Toggle(text, callback, default, iconName)
+		function tab:Toggle(text, default, callback, iconName)
 			local f = card(46)
 			rowLabel(f, iconName, "Toggle", text, 46)
 			local sw = Instance.new("Frame")
@@ -645,19 +739,33 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			local state = default and true or false
 			clickBtn.Activated:Connect(function()
 				state = not state
-				TweenService:Create(
-					circ,
-					TweenInfo.new(0.15),
-					{ Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8) }
-				):Play()
-				TweenService
-					:Create(sw, TweenInfo.new(0.15), { BackgroundColor3 = state and theme.Accent or theme.Stroke })
-					:Play()
+				tw(circ, TweenInfo.new(0.15), { Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8) })
+				tw(sw, TweenInfo.new(0.15), { BackgroundColor3 = state and theme.Accent or theme.Stroke })
 				callback(state)
 			end)
 		end
 
-		function tab:Slider(text, min, max, default, callback, iconName)
+		function tab:Slider(text, min, max, default, step, callback, iconName)
+			if type(step) == "function" then callback, step = step, 1 else step = step or 1 end
+			local function decimalsOf(n)
+				if n == math.floor(n) then
+					return 0
+				end
+				local s = string.format("%.6f", n):gsub("0+$", ""):gsub("%.$", "")
+				local dot = s:find("%.")
+				return dot and (#s - dot) or 0
+			end
+			local decimals = decimalsOf(step)
+			local mult = 10 ^ decimals
+			local function fmt(v)
+				return decimals > 0 and string.format("%." .. decimals .. "f", v) or tostring(v)
+			end
+			local function round(v)
+				local snapped = math.floor((v - min) / step + 0.5) * step + min
+				return math.floor(snapped * mult + 0.5) / mult
+			end
+			default = round(default)
+
 			local f = card(70)
 			local row = Instance.new("Frame")
 			row.Name = rname()
@@ -688,7 +796,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			val.Size = UDim2.new(0.3, 0, 0, 22)
 			val.Position = UDim2.new(0.7, 0, 0, 10)
 			val.FontFace = F.Bold
-			val.Text = tostring(default)
+			val.Text = fmt(default)
 			val.TextColor3 = theme.Accent
 			val.TextSize = T.Label
 			val.TextXAlignment = Enum.TextXAlignment.Right
@@ -714,9 +822,9 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			fillc.Parent = fill
 			local function move(x)
 				local pos = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-				local value = math.floor(min + (max - min) * pos + 0.5)
+				local value = round(min + (max - min) * pos)
 				fill.Size = UDim2.new(pos, 0, 1, 0)
-				val.Text = tostring(value)
+				val.Text = fmt(value)
 				callback(value)
 			end
 			bar.InputBegan:Connect(function(i)
@@ -732,13 +840,12 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			end)
 		end
 
-		function tab:Dropdown(text, options, callback, default, multi, iconName)
+		function tab:Dropdown(text, options, callback, default, iconName)
+			local multi = type(default) == "table"
 			local selected = {}
 			if multi then
-				if default then
-					for i = 1, #default do
-						selected[default[i]] = true
-					end
+				for i = 1, #default do
+					selected[default[i]] = true
 				end
 			else
 				default = default or options[1]
@@ -762,6 +869,10 @@ function Library:CreateWindow(name, iconId, sideTabs)
 					return text .. ": None"
 				end
 				return text .. ": " .. table.concat(parts, ", ")
+			end
+
+			local function openHeight()
+				return #options > 0 and (48 + 38 * #options) or 46
 			end
 
 			local head = Instance.new("Frame")
@@ -796,6 +907,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			list2.Size = UDim2.new(1, 0, 0, 0)
 			list2.Parent = f
 			local vl = Instance.new("UIListLayout")
+			vl.SortOrder = Enum.SortOrder.LayoutOrder
 			vl.Padding = UDim.new(0, 6)
 			vl.Parent = list2
 			local clickBtn = Instance.new("TextButton")
@@ -805,64 +917,95 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			clickBtn.Size = UDim2.new(1, 0, 0, 46)
 			clickBtn.Text = ""
 			clickBtn.Parent = f
+
 			local opened = false
-			clickBtn.Activated:Connect(function()
-				opened = not opened
-				local h = opened and (46 + #options * 34 + 8) or 46
-				TweenService:Create(f, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, h) }):Play()
-			end)
-			for i = 1, #options do
-				local v = options[i]
-				local opt = Instance.new("TextButton")
-				opt.Name = rname()
-				opt.LayoutOrder = i
-				local isSel = multi and selected[v]
-				opt.BackgroundColor3 = isSel and theme.Accent or theme.Background
-				opt.Size = UDim2.new(1, 0, 0, 32)
-				opt.FontFace = F.Medium
-				opt.Text = tostring(v)
-				opt.TextColor3 = isSel and theme.AccentText or theme.SubText
-				opt.TextSize = T.Body
-				opt.TextTruncate = Enum.TextTruncate.AtEnd
-				opt.Parent = list2
-				local oc = Instance.new("UICorner")
-				oc.CornerRadius = UDim.new(0, 6)
-				oc.Parent = opt
-				if multi then
-					opt.Activated:Connect(function()
-						if selected[v] then
-							selected[v] = nil
-							opt.BackgroundColor3 = theme.Background
-							opt.TextColor3 = theme.SubText
-						else
-							selected[v] = true
-							opt.BackgroundColor3 = theme.Accent
-							opt.TextColor3 = theme.AccentText
-						end
-						label.Text = labelText()
-						local list, n = {}, 0
-						for j = 1, #options do
-							local ov = options[j]
-							if selected[ov] then
-								n = n + 1
-								list[n] = ov
+			local optBtns = {}
+
+			local function build()
+				for i = 1, #optBtns do
+					optBtns[i]:Destroy()
+				end
+				table.clear(optBtns)
+				for i = 1, #options do
+					local v = options[i]
+					local opt = Instance.new("TextButton")
+					opt.Name = rname()
+					opt.LayoutOrder = i
+					local isSel = multi and selected[v]
+					opt.BackgroundColor3 = isSel and theme.Accent or theme.Background
+					opt.Size = UDim2.new(1, 0, 0, 32)
+					opt.FontFace = F.Medium
+					opt.Text = tostring(v)
+					opt.TextColor3 = isSel and theme.AccentText or theme.SubText
+					opt.TextSize = T.Body
+					opt.TextTruncate = Enum.TextTruncate.AtEnd
+					opt.Parent = list2
+					local oc = Instance.new("UICorner")
+					oc.CornerRadius = UDim.new(0, 6)
+					oc.Parent = opt
+					if multi then
+						opt.Activated:Connect(function()
+							if selected[v] then
+								selected[v] = nil
+								opt.BackgroundColor3 = theme.Background
+								opt.TextColor3 = theme.SubText
+							else
+								selected[v] = true
+								opt.BackgroundColor3 = theme.Accent
+								opt.TextColor3 = theme.AccentText
 							end
-						end
-						callback(list)
-					end)
-				else
-					opt.Activated:Connect(function()
-						default = v
-						label.Text = labelText()
-						opened = false
-						f.Size = UDim2.new(1, 0, 0, 46)
-						callback(v)
-					end)
+							label.Text = labelText()
+							local list, n = {}, 0
+							for j = 1, #options do
+								local ov = options[j]
+								if selected[ov] then
+									n = n + 1
+									list[n] = ov
+								end
+							end
+							callback(list)
+						end)
+					else
+						opt.Activated:Connect(function()
+							default = v
+							label.Text = labelText()
+							opened = false
+							tw(f, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 46) })
+							callback(v)
+						end)
+					end
+					optBtns[i] = opt
 				end
 			end
+			build()
+
+			clickBtn.Activated:Connect(function()
+				opened = not opened
+				tw(f, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, opened and openHeight() or 46) })
+			end)
+
+			local dropdown = {}
+			function dropdown:Refresh(newOptions)
+				options = newOptions
+				if multi then
+					for k in pairs(selected) do
+						if not table.find(options, k) then
+							selected[k] = nil
+						end
+					end
+				elseif not table.find(options, default) then
+					default = options[1]
+				end
+				build()
+				label.Text = labelText()
+				if opened then
+					tw(f, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, openHeight()) })
+				end
+			end
+			return dropdown
 		end
 
-		function tab:Keybind(text, callback, default, iconName)
+		function tab:Keybind(text, default, callback, iconName)
 			local f = card(46)
 			rowLabel(f, iconName, "Keybind", text, 110)
 			local bind = Instance.new("TextButton")
@@ -895,7 +1038,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 				listening = true
 				bind.Text = "..."
 			end)
-			UserInputService.InputBegan:Connect(function(i, gpe)
+			conn(UserInputService.InputBegan, function(i, gpe)
 				if listening then
 					if i.UserInputType == Enum.UserInputType.Keyboard then
 						if i.KeyCode == Enum.KeyCode.Backspace then
@@ -915,7 +1058,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			end)
 		end
 
-		function tab:Color(text, callback, default, iconName)
+		function tab:Color(text, default, callback, iconName)
 			local f = card(46)
 			rowLabel(f, iconName, "Color", text, 58)
 			local sw = Instance.new("TextButton")
@@ -947,21 +1090,57 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			end)
 		end
 
+		function tab:Input(text, placeholder, callback, default, iconName)
+			local f = card(46)
+			rowLabel(f, iconName, "Input", text, 140)
+			local box = Instance.new("TextBox")
+			box.Name = rname()
+			box.BackgroundColor3 = theme.Background
+			box.AnchorPoint = Vector2.new(1, 0.5)
+			box.Position = UDim2.new(1, 0, 0.5, 0)
+			box.Size = UDim2.new(0, 130, 0, 30)
+			box.FontFace = F.Medium
+			box.PlaceholderText = placeholder or ""
+			box.Text = default or ""
+			box.TextColor3 = theme.Text
+			box.PlaceholderColor3 = theme.SubText
+			box.TextSize = T.Body
+			box.ClearTextOnFocus = false
+			box.TextTruncate = Enum.TextTruncate.AtEnd
+			box.Parent = f
+			local bc = Instance.new("UICorner")
+			bc.CornerRadius = UDim.new(0, 6)
+			bc.Parent = box
+			local bpad = Instance.new("UIPadding")
+			bpad.PaddingLeft = UDim.new(0, 8)
+			bpad.PaddingRight = UDim.new(0, 8)
+			bpad.Parent = box
+			box.FocusLost:Connect(function()
+				callback(box.Text)
+			end)
+		end
+
 		return tab
 	end
 
 	function window.Settings()
 		local settings = window:Tab("Settings", Icons.Settings)
-		settings:Toggle("Show Icons", function(state)
+		settings:Slider("UI Scale", 80, 120, 100,1, function(v)
+			uiScale.Scale = v / 100
+		end)
+		settings:Keybind("Collapse Window", Enum.KeyCode.K, toggleWindow)
+		settings:Toggle("Show Icons", true, function(state)
 			iconsOn = state
 			for i = 1, iconN do
 				icons[i].Visible = state
 			end
-		end, true)
-		settings:Toggle("Close Button", function(state)
+		end)
+		settings:Toggle("Close Button", false, function(state)
 			closeBtn.Visible = state
-		end, false)
-		settings:Keybind("Collapse Window", toggleWindow, Enum.KeyCode.K)
+		end)
+		settings:Toggle("Reduce Motion", false, function(state)
+			reduceMotion = state
+		end)
 	end
 
 	return window
