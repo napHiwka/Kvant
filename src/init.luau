@@ -70,6 +70,40 @@ local Icons = {
 	Input = "rbxassetid://107551944047171" -- text-cursor-input
 }
 
+local function decimalsOf(n)
+	if n == math.floor(n) then
+		return 0
+	end
+	local s = string.format("%.6f", n):gsub("0+$", ""):gsub("%.$", "")
+	local dot = s:find("%.")
+	return dot and (#s - dot) or 0
+end
+
+local function newCorner(parent, radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = radius
+	c.Parent = parent
+	return c
+end
+
+local function newPadding(parent, left, right, top, bottom)
+	local p = Instance.new("UIPadding")
+	if left then p.PaddingLeft = UDim.new(0, left) end
+	if right then p.PaddingRight = UDim.new(0, right) end
+	if top then p.PaddingTop = UDim.new(0, top) end
+	if bottom then p.PaddingBottom = UDim.new(0, bottom) end
+	p.Parent = parent
+	return p
+end
+
+local function newStroke(parent, color, transparency)
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	if transparency then s.Transparency = transparency end
+	s.Parent = parent
+	return s
+end
+
 function Library:CreateWindow(name, iconId, sideTabs)
 	name = name or "Kvant"
 	local theme = Library.CurrentTheme
@@ -200,13 +234,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	mainConstraint.MaxSize = winMax
 	mainConstraint.Parent = main
 
-	local mainCorner = Instance.new("UICorner")
-	mainCorner.CornerRadius = UDim.new(0, 10)
-	mainCorner.Parent = main
-
-	local mainStroke = Instance.new("UIStroke")
-	mainStroke.Color = theme.Stroke
-	mainStroke.Parent = main
+	newCorner(main, UDim.new(0, 10))
+	newStroke(main, theme.Stroke)
 
 	local uiScale = Instance.new("UIScale")
 	uiScale.Parent = main
@@ -232,9 +261,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	topbar.ZIndex = 5
 	topbar.Parent = main
 
-	local topbarCorner = Instance.new("UICorner")
-	topbarCorner.CornerRadius = UDim.new(0, 10)
-	topbarCorner.Parent = topbar
+	newCorner(topbar, UDim.new(0, 10))
 
 	local titleRow = Instance.new("Frame")
 	titleRow.Name = rname()
@@ -321,9 +348,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		tabList.Padding = UDim.new(0, 8)
 		tabList.Parent = tabHolder
 
-		local tabPad = Instance.new("UIPadding")
-		tabPad.PaddingTop = UDim.new(0, 14)
-		tabPad.Parent = tabHolder
+		newPadding(tabHolder, nil, nil, 14)
 
 		pageHolder = Instance.new("Frame")
 		pageHolder.Name = rname()
@@ -360,15 +385,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		pageHolder.Parent = main
 	end
 
-	local pagePad = Instance.new("UIPadding")
-	pagePad.PaddingLeft = UDim.new(0, 16)
-	pagePad.PaddingRight = UDim.new(0, 16)
-	pagePad.PaddingTop = UDim.new(0, 12)
-	if sideTabs then
-		pagePad.PaddingTop = UDim.new(0, 0)
-	end
-	pagePad.PaddingBottom = UDim.new(0, 16)
-	pagePad.Parent = pageHolder
+	newPadding(pageHolder, 16, 16, sideTabs and 0 or 12, 16)
 
 	local pill = Instance.new("TextButton")
 	pill.Name = rname()
@@ -380,13 +397,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	pill.Size = UDim2.new(0, 150, 0, 40)
 	pill.Parent = gui
 
-	local pillCorner = Instance.new("UICorner")
-	pillCorner.CornerRadius = UDim.new(1, 0)
-	pillCorner.Parent = pill
-
-	local pillStroke = Instance.new("UIStroke")
-	pillStroke.Color = theme.Stroke
-	pillStroke.Parent = pill
+	newCorner(pill, UDim.new(1, 0))
+	newStroke(pill, theme.Stroke)
 
 	local pillLabel = Instance.new("TextLabel")
 	pillLabel.Name = rname()
@@ -423,16 +435,21 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		end
 		toggleWindow()
 	end)
-	closeBtn.Activated:Connect(function()
-		for i = 1, #conns do
-			conns[i]:Disconnect()
-		end
-		gui:Destroy()
-	end)
 
 	local tabBtns, tabLabels, tabPages, tabN = {}, {}, {}, 0
 	local firstUserActivated
 	local window = {}
+
+	function window:Destroy()
+		for i = 1, #conns do
+			conns[i]:Disconnect()
+		end
+		gui:Destroy()
+	end
+
+	closeBtn.Activated:Connect(function()
+		window:Destroy()
+	end)
 
 	function window:Notify(text, duration)
 		duration = duration or 3
@@ -443,19 +460,9 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		n.Size = UDim2.new(1, 0, 0, 0)
 		n.AutomaticSize = Enum.AutomaticSize.Y
 		n.Parent = notifHolder
-		local c = Instance.new("UICorner")
-		c.CornerRadius = UDim.new(0, 8)
-		c.Parent = n
-		local s = Instance.new("UIStroke")
-		s.Color = theme.Stroke
-		s.Transparency = 1
-		s.Parent = n
-		local pad = Instance.new("UIPadding")
-		pad.PaddingLeft = UDim.new(0, 14)
-		pad.PaddingRight = UDim.new(0, 14)
-		pad.PaddingTop = UDim.new(0, 10)
-		pad.PaddingBottom = UDim.new(0, 10)
-		pad.Parent = n
+		newCorner(n, UDim.new(0, 8))
+		local s = newStroke(n, theme.Stroke, 1)
+		newPadding(n, 14, 14, 10, 10)
 		local l = Instance.new("TextLabel")
 		l.BackgroundTransparency = 1
 		l.Size = UDim2.new(1, 0, 0, 0)
@@ -499,14 +506,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		end
 		btn.Parent = tabHolder
 
-		local btnCorner = Instance.new("UICorner")
-		btnCorner.CornerRadius = sideTabs and UDim.new(0, 8) or UDim.new(1, 0)
-		btnCorner.Parent = btn
-
-		local btnPad = Instance.new("UIPadding")
-		btnPad.PaddingLeft = UDim.new(0, sideTabs and 14 or 16)
-		btnPad.PaddingRight = UDim.new(0, sideTabs and 14 or 16)
-		btnPad.Parent = btn
+		newCorner(btn, sideTabs and UDim.new(0, 8) or UDim.new(1, 0))
+		newPadding(btn, sideTabs and 14 or 16, sideTabs and 14 or 16)
 
 		local btnList = Instance.new("UIListLayout")
 		btnList.FillDirection = Enum.FillDirection.Horizontal
@@ -615,16 +616,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			f.AutomaticSize = Enum.AutomaticSize.Y
 			f.Parent = page
 
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(0, 8)
-			c.Parent = f
-
-			local pad = Instance.new("UIPadding")
-			pad.PaddingLeft = UDim.new(0, 16)
-			pad.PaddingRight = UDim.new(0, 16)
-			pad.PaddingTop = UDim.new(0, 14)
-			pad.PaddingBottom = UDim.new(0, 14)
-			pad.Parent = f
+			newCorner(f, UDim.new(0, 8))
+			newPadding(f, 16, 16, 14, 14)
 
 			local vlist = Instance.new("UIListLayout")
 			vlist.Padding = UDim.new(0, 8)
@@ -680,13 +673,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			f.BackgroundColor3 = theme.Secondary
 			f.Size = UDim2.new(1, 0, 0, h)
 			f.Parent = page
-			local c = Instance.new("UICorner")
-			c.CornerRadius = UDim.new(0, 8)
-			c.Parent = f
-			local pad = Instance.new("UIPadding")
-			pad.PaddingLeft = UDim.new(0, 16)
-			pad.PaddingRight = UDim.new(0, 16)
-			pad.Parent = f
+			newCorner(f, UDim.new(0, 8))
+			newPadding(f, 16, 16)
 			return f
 		end
 
@@ -718,18 +706,14 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			sw.Position = UDim2.new(1, 0, 0.5, 0)
 			sw.Size = UDim2.new(0, 40, 0, 22)
 			sw.Parent = f
-			local swc = Instance.new("UICorner")
-			swc.CornerRadius = UDim.new(1, 0)
-			swc.Parent = sw
+			newCorner(sw, UDim.new(1, 0))
 			local circ = Instance.new("Frame")
 			circ.Name = rname()
 			circ.BackgroundColor3 = Color3.new(1, 1, 1)
 			circ.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 			circ.Size = UDim2.new(0, 16, 0, 16)
 			circ.Parent = sw
-			local circc = Instance.new("UICorner")
-			circc.CornerRadius = UDim.new(1, 0)
-			circc.Parent = circ
+			newCorner(circ, UDim.new(1, 0))
 			local clickBtn = Instance.new("TextButton")
 			clickBtn.Name = rname()
 			clickBtn.BackgroundTransparency = 1
@@ -747,14 +731,6 @@ function Library:CreateWindow(name, iconId, sideTabs)
 
 		function tab:Slider(text, min, max, default, step, callback, iconName)
 			if type(step) == "function" then callback, step = step, 1 else step = step or 1 end
-			local function decimalsOf(n)
-				if n == math.floor(n) then
-					return 0
-				end
-				local s = string.format("%.6f", n):gsub("0+$", ""):gsub("%.$", "")
-				local dot = s:find("%.")
-				return dot and (#s - dot) or 0
-			end
 			local decimals = decimalsOf(step)
 			local mult = 10 ^ decimals
 			local function fmt(v)
@@ -808,18 +784,14 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			bar.Position = UDim2.new(0, 0, 0, 46)
 			bar.Size = UDim2.new(1, 0, 0, 6)
 			bar.Parent = f
-			local barc = Instance.new("UICorner")
-			barc.CornerRadius = UDim.new(1, 0)
-			barc.Parent = bar
+			newCorner(bar, UDim.new(1, 0))
 			local fill = Instance.new("Frame")
 			fill.Name = rname()
 			fill.BackgroundColor3 = theme.Accent
 			fill.BorderSizePixel = 0
 			fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
 			fill.Parent = bar
-			local fillc = Instance.new("UICorner")
-			fillc.CornerRadius = UDim.new(1, 0)
-			fillc.Parent = fill
+			newCorner(fill, UDim.new(1, 0))
 			local function move(x)
 				local pos = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
 				local value = round(min + (max - min) * pos)
@@ -940,9 +912,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 					opt.TextSize = T.Body
 					opt.TextTruncate = Enum.TextTruncate.AtEnd
 					opt.Parent = list2
-					local oc = Instance.new("UICorner")
-					oc.CornerRadius = UDim.new(0, 6)
-					oc.Parent = opt
+					newCorner(opt, UDim.new(0, 6))
 					if multi then
 						opt.Activated:Connect(function()
 							if selected[v] then
@@ -1020,13 +990,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			bind.TextColor3 = theme.Text
 			bind.TextSize = T.Body
 			bind.Parent = f
-			local bc = Instance.new("UICorner")
-			bc.CornerRadius = UDim.new(0, 6)
-			bc.Parent = bind
-			local bindPad = Instance.new("UIPadding")
-			bindPad.PaddingLeft = UDim.new(0, 5)
-			bindPad.PaddingRight = UDim.new(0, 5)
-			bindPad.Parent = bind
+			newCorner(bind, UDim.new(0, 6))
+			newPadding(bind, 5, 5)
 			local bindMin = Instance.new("UISizeConstraint")
 			bindMin.MinSize = Vector2.new(40, 0)
 			bindMin.Parent = bind
@@ -1069,9 +1034,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			sw.Size = UDim2.new(0, 38, 0, 24)
 			sw.Text = ""
 			sw.Parent = f
-			local sc = Instance.new("UICorner")
-			sc.CornerRadius = UDim.new(0, 6)
-			sc.Parent = sw
+			newCorner(sw, UDim.new(0, 6))
 			local palette = {
 				default,
 				Color3.fromRGB(239, 68, 68),
@@ -1108,13 +1071,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			box.ClearTextOnFocus = false
 			box.TextTruncate = Enum.TextTruncate.AtEnd
 			box.Parent = f
-			local bc = Instance.new("UICorner")
-			bc.CornerRadius = UDim.new(0, 6)
-			bc.Parent = box
-			local bpad = Instance.new("UIPadding")
-			bpad.PaddingLeft = UDim.new(0, 8)
-			bpad.PaddingRight = UDim.new(0, 8)
-			bpad.Parent = box
+			newCorner(box, UDim.new(0, 6))
+			newPadding(box, 8, 8)
 			box.FocusLost:Connect(function()
 				callback(box.Text)
 			end)
