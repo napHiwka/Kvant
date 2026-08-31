@@ -104,6 +104,17 @@ local function newStroke(parent, color, transparency)
 	return s
 end
 
+local function styleScrollbar(scrollingFrame, theme, horizontal)
+	scrollingFrame.ScrollBarThickness = 4
+	scrollingFrame.ScrollBarImageColor3 = theme.SubText
+	scrollingFrame.ScrollBarImageTransparency = 0.25
+	if horizontal then
+		scrollingFrame.HorizontalScrollBarInset = Enum.ScrollBarInset.Always
+	else
+		scrollingFrame.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+	end
+end
+
 function Library:CreateWindow(name, iconId, sideTabs)
 	name = name or "Kvant"
 	local theme = Library.CurrentTheme
@@ -111,6 +122,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	local icons, iconN, iconsOn = {}, 0, true
 
 	local reduceMotion = false
+	local notificationsEnabled = true
 	local function tw(inst, info, props)
 		if reduceMotion then
 			for k, v in props do
@@ -338,9 +350,8 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		tabHolder.ScrollingDirection = Enum.ScrollingDirection.Y
 		tabHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		tabHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
-		tabHolder.ScrollBarThickness = 3
-		tabHolder.ScrollBarImageColor3 = theme.Stroke
 		tabHolder.Parent = main
+		styleScrollbar(tabHolder, theme, false)
 
 		local tabList = Instance.new("UIListLayout")
 		tabList.SortOrder = Enum.SortOrder.LayoutOrder
@@ -362,13 +373,12 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		tabHolder.BackgroundTransparency = 1
 		tabHolder.BorderSizePixel = 0
 		tabHolder.Position = UDim2.new(0, 16, 0, 54)
-		tabHolder.Size = UDim2.new(1, -32, 0, 40)
+		tabHolder.Size = UDim2.new(1, -32, 0, 46)
 		tabHolder.ScrollingDirection = Enum.ScrollingDirection.X
 		tabHolder.AutomaticCanvasSize = Enum.AutomaticSize.X
 		tabHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
-		tabHolder.ScrollBarThickness = 3
-		tabHolder.ScrollBarImageColor3 = theme.Stroke
 		tabHolder.Parent = main
+		styleScrollbar(tabHolder, theme, true)
 
 		local tabList = Instance.new("UIListLayout")
 		tabList.FillDirection = Enum.FillDirection.Horizontal
@@ -380,7 +390,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		pageHolder = Instance.new("Frame")
 		pageHolder.Name = rname()
 		pageHolder.BackgroundTransparency = 1
-		pageHolder.Position = UDim2.new(0, 0, 0, 102)
+		pageHolder.Position = UDim2.new(0, 0, 0, 108)
 		pageHolder.Size = UDim2.new(1, 0, 1, -102)
 		pageHolder.Parent = main
 	end
@@ -424,7 +434,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			main.Visible = true
 			main.Size = UDim2.new(winSize.X.Scale, winSize.X.Offset, 0, 44)
 			pill.Visible = false
-			tw(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 })
+			tw(main, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0, Size = winSize })
 		end
 	end
 	minBtn.Activated:Connect(toggleWindow)
@@ -452,6 +462,9 @@ function Library:CreateWindow(name, iconId, sideTabs)
 	end)
 
 	function window:Notify(text, duration)
+		if not notificationsEnabled then
+			return
+		end
 		duration = duration or 3
 		local n = Instance.new("Frame")
 		n.Name = rname()
@@ -502,7 +515,7 @@ function Library:CreateWindow(name, iconId, sideTabs)
 			btn.Size = UDim2.new(0.86, 0, 0, 40)
 		else
 			btn.AutomaticSize = Enum.AutomaticSize.X
-			btn.Size = UDim2.new(0, 0, 1, 0)
+			btn.Size = UDim2.new(0, 0, 0, 40)
 		end
 		btn.Parent = tabHolder
 
@@ -535,10 +548,9 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		page.BackgroundTransparency = 1
 		page.Size = UDim2.new(1, 0, 1, 0)
 		page.Visible = false
-		page.ScrollBarThickness = 3
-		page.ScrollBarImageColor3 = theme.Stroke
 		page.CanvasSize = UDim2.new(0, 0, 0, 0)
 		page.Parent = pageHolder
+		styleScrollbar(page, theme, false)
 
 		local list = Instance.new("UIListLayout")
 		list.SortOrder = Enum.SortOrder.LayoutOrder
@@ -1098,6 +1110,9 @@ function Library:CreateWindow(name, iconId, sideTabs)
 		end)
 		settings:Toggle("Reduce Motion", false, function(state)
 			reduceMotion = state
+		end)
+		settings:Toggle("Disable Notifications", false, function(state)
+			notificationsEnabled = not state
 		end)
 	end
 
