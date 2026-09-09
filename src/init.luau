@@ -2,6 +2,7 @@
 -- style: correct code style format (lazy for now)
 -- style: extract hardcoded strings for better code (lazy for now)
 -- pcall elements in scope creating - so it can create other valid elements or keep as error??
+-- refactor: replace getfenv?
 
 -- LATER TODO:
 -- feat?? reset kvant settings

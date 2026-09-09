@@ -3,6 +3,8 @@
 Minimalist UI library for Roblox. Supports both declarative (scoped) and imperative usage for fast and enjoyable scripting.
 The library supports runtime theme & font switching, configuration saving. You don't need to manually set flags for configuration entries - everything works out of the box.
 
+![Kvant UI](assets/screenshot.png)
+
 ## Quickstart
 
 ### Declarative Usage
@@ -10,7 +12,7 @@ The library supports runtime theme & font switching, configuration saving. You d
 Controls automatically attach to the currently open container scope.
 
 ```lua
-local Kvant = loadstring(game:HttpGet("..."))()
+local Kvant = loadstring(game:HttpGet("https://raw.githubusercontent.com/napHiwka/Kvant/refs/heads/main/src/init.luau"))()
 
 local autoCollect
 local speedSlider
@@ -41,7 +43,7 @@ speedSlider:Set(32)
 Containers return objects that expose creation methods and control handles.
 
 ```lua
-local Kvant = loadstring(game:HttpGet("..."))()
+local Kvant = loadstring(game:HttpGet("https://raw.githubusercontent.com/napHiwka/Kvant/refs/heads/main/src/init.luau"))()
 
 local Window = Kvant:CreateWindow("Project")
 local MainTab = Window:Tab("Main")
