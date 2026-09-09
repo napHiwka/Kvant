@@ -1,5 +1,7 @@
 -- TODO:
 -- style: correct code style format (lazy for now)
+-- style: extract hardcoded strings for better code (lazy for now)
+-- pcall elements in scope creating - so it can create other valid elements or keep as error??
 
 -- LATER TODO:
 -- feat?? reset kvant settings
@@ -35,9 +37,9 @@ local Library = {
 Library.Config = {
 	Text = { Title = 18, Label = 17, Body = 16, Small = 15 },
 	Fonts = {
-		Bold = Font.new("rbxassetid://12187365364", Enum.FontWeight.Bold),
-		Medium = Font.new("rbxassetid://12187365364", Enum.FontWeight.Medium),
-		Regular = Font.new("rbxassetid://12187365364", Enum.FontWeight.Regular),
+		Bold = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold),
+		Medium = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium),
+		Regular = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular),
 		Icons = Font.new("rbxasset://luapackages/packages/_index/buildericons/buildericons/buildericons.json"),
 	},
 	Motion = {
@@ -1485,7 +1487,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 	local settingsTab = createTab("Settings", Icons.Settings, KvantConfig)
 	settingsTab:Section("Interface", false, function(s)
 		s:Dropdown("Theme", { "Darker", "Dark", "Vesper", "Light", "SolorizedLight" }, function(v) Library:SetTheme(v) end, "Darker")
-		s:Dropdown("Font", { "Inter", "Roboto", "Ubuntu" }, function(v) Library:SetFont(v) end, "Inter")
+		s:Dropdown("Font", { "Inter", "Roboto", "Ubuntu" }, function(v) Library:SetFont(v) end, "Roboto")
 		s:Slider("UI Scale", 80, 120, 100, 1, function(v) baseScale = v / 100; if not minimized then uiScale.Scale = baseScale end end)
 		s:Toggle("Show Icons", true, function(st)
 			iconsOn = st
