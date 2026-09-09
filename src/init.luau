@@ -1,16 +1,10 @@
--- TODO:
--- feat: runtime theme changing
--- feat: custom themes validation
--- feat: auto inverse icon color depen on theme (dark or light) palette
--- fix: toggle off icons not working
-
 -- LATER TODO:
--- fix: uncollapse animation
--- feat: auto-cache and auto-update when needed from github.
+-- feat: auto-cache and auto-update when needed from github (if supported).
 -- feat: add customasset to bypass detection.
+-- feat: toasts on long hower with descriptin for toggles, buttons, etc???
 -- style: code still messy (check conn).
--- style: find chevron icons in buildericons
--- chore: API validation
+-- style: BuilderIcons - find chevron icons for dropdowns
+-- style: BuilderIcons - replacement top frame header icons
 
 -- Environment & Services
 local cloneref = cloneref or function(f) return f end
@@ -29,10 +23,6 @@ local Library = {
 	CurrentTheme = nil,
 	Themes = {},
 }
-
--- TODO: runtime font Changing???
--- 12187365364 - Inter
--- rbxasset://fonts/families/Roboto.json
 
 Library.Config = {
 	Text = { Title = 18, Label = 17, Body = 16, Small = 15 },
@@ -58,8 +48,6 @@ local BuiltInThemes = {
 		Text = Color3.fromRGB(245, 245, 247),
 		SubText = Color3.fromRGB(160, 160, 170),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		Icon = Color3.fromRGB(245, 245, 247),
-		IconMuted = Color3.fromRGB(160, 160, 170),
 	},
 	Darker = {
 		Background = Color3.fromRGB(9, 9, 11),
@@ -69,10 +57,8 @@ local BuiltInThemes = {
 		Text = Color3.fromRGB(240, 240, 243),
 		SubText = Color3.fromRGB(140, 140, 150),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		Icon = Color3.fromRGB(240, 240, 243),
-		IconMuted = Color3.fromRGB(140, 140, 150),
 	},
-	Vesper = { -- github.com/michaljach/vesper-black
+	Vesper = {
 		Background = Color3.fromRGB(16, 16, 16),
 		Secondary = Color3.fromRGB(24, 24, 24),
 		Accent = Color3.fromRGB(255, 199, 153),
@@ -80,10 +66,8 @@ local BuiltInThemes = {
 		Text = Color3.fromRGB(255, 255, 255),
 		SubText = Color3.fromRGB(160, 160, 160),
 		AccentText = Color3.fromRGB(16, 16, 16),
-		Icon = Color3.fromRGB(255, 255, 255),
-		IconMuted = Color3.fromRGB(160, 160, 160),
 	},
-	Light = { -- github.com/miguelsolorio/min-theme
+	Light = {
 		Background = Color3.fromRGB(246, 246, 246),
 		Secondary = Color3.fromRGB(255, 255, 255),
 		Accent = Color3.fromRGB(25, 118, 210),
@@ -91,29 +75,106 @@ local BuiltInThemes = {
 		Text = Color3.fromRGB(33, 33, 33),
 		SubText = Color3.fromRGB(117, 117, 117),
 		AccentText = Color3.fromRGB(255, 255, 255),
-		Icon = Color3.fromRGB(33, 33, 33),
-		IconMuted = Color3.fromRGB(140, 140, 140),
 	},
 }
-Library.Themes = BuiltInThemes
-Library.CurrentTheme = BuiltInThemes.Darker
 
-function Library:SetTheme(theme)
-	Library.CurrentTheme = typeof(theme) == "table" and theme or Library.Themes[theme] or Library.CurrentTheme
+local REQUIRED_THEME_KEYS = { "Background", "Secondary", "Accent", "Stroke", "Text", "SubText" }
+local function isLight(c) return (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) > 0.5 end
+
+local function validateTheme(t)
+	if type(t) ~= "table" then warn("[Kvant] Theme must be a table"); return false end
+	local missing = {}
+	for _, k in REQUIRED_THEME_KEYS do
+		if typeof(t[k]) ~= "Color3" then table.insert(missing, k) end
+	end
+	if #missing > 0 then
+		warn("[Kvant] Missing Color3 fields in theme: " .. table.concat(missing, ", "))
+		return false
+	end
+	return true
 end
 
+local function sanitizeTheme(t)
+	local th = table.clone(t)
+	local light = isLight(th.Background)
+	if not th.Icon or isLight(th.Icon) == light then
+		th.Icon = light and Color3.fromRGB(33, 33, 33) or Color3.fromRGB(245, 245, 247)
+	end
+	if not th.IconMuted or isLight(th.IconMuted) == light then
+		th.IconMuted = light and Color3.fromRGB(130, 130, 130) or Color3.fromRGB(160, 160, 170)
+	end
+	if not th.AccentText then
+		th.AccentText = isLight(th.Accent) and Color3.fromRGB(20, 20, 20) or Color3.fromRGB(255, 255, 255)
+	end
+	return th
+end
+
+local themeRegistry, fontRegistry = {}, {}
+local function bindTheme(inst, prop, key)
+	table.insert(themeRegistry, { inst = inst, prop = prop, key = key })
+	local val = type(key) == "function" and key(Library.CurrentTheme) or Library.CurrentTheme[key]
+	if val then inst[prop] = val end
+	return inst
+end
+
+local function bindFont(inst, weight)
+	table.insert(fontRegistry, { inst = inst, weight = weight })
+	inst.FontFace = Library.Config.Fonts[weight] or Library.Config.Fonts.Regular
+	return inst
+end
+
+function Library:SetTheme(theme)
+	local t = typeof(theme) == "table" and theme or Library.Themes[theme]
+	if not t or not validateTheme(t) then return end
+	Library.CurrentTheme = sanitizeTheme(t)
+	for i = #themeRegistry, 1, -1 do
+		local e = themeRegistry[i]
+		if e.inst.Parent then
+			local val = type(e.key) == "function" and e.key(Library.CurrentTheme) or Library.CurrentTheme[e.key]
+			if val then e.inst[e.prop] = val end
+		else
+			table.remove(themeRegistry, i)
+		end
+	end
+end
+
+local FontPresets = {
+	Inter = "rbxassetid://12187365364",
+	Roboto = "rbxasset://fonts/families/Roboto.json",
+	Ubuntu = "rbxasset://fonts/families/Ubuntu.json",
+}
+
+function Library:SetFont(font)
+	local id = FontPresets[font] or (typeof(font) == "Font" and font.Family) or tostring(font)
+	if not id:find("://") and tonumber(id) then id = "rbxassetid://" .. id end
+	Library.Config.Fonts.Bold = Font.new(id, Enum.FontWeight.Bold)
+	Library.Config.Fonts.Medium = Font.new(id, Enum.FontWeight.Medium)
+	Library.Config.Fonts.Regular = Font.new(id, Enum.FontWeight.Regular)
+	for i = #fontRegistry, 1, -1 do
+		local e = fontRegistry[i]
+		if e.inst.Parent then
+			e.inst.FontFace = Library.Config.Fonts[e.weight] or Library.Config.Fonts.Regular
+		else
+			table.remove(fontRegistry, i)
+		end
+	end
+end
+
+Library.Themes = BuiltInThemes
+Library.CurrentTheme = sanitizeTheme(BuiltInThemes.Darker)
+
 local Icons = {
-	Kvant = "rbxassetid://73167696981648", -- atom
-	Tab = "rbxassetid://91943941515944", -- layout-panel-top
-	Button = "rbxassetid://107150227368485", -- mouse-pointer-click
-	Toggle = "rbxassetid://90411952142550", -- toggle-right
-	Slider = "rbxassetid://85538382643347", -- sliders-horizontal
-	Keybind = "rbxassetid://121474456068237", -- keyboard
-	Text = "rbxassetid://133543553793564", -- type
-	Settings = "rbxassetid://80758916183665", -- settings
-	Dropdown = "rbxassetid://134243273101015", -- chevron-down
-	Color = "rbxassetid://86350350950064", -- palette
-	Input = "rbxassetid://107551944047171", -- text-cursor-input
+	Kvant = "rbxassetid://73167696981648",
+	Tab = "rbxassetid://91943941515944",
+	Button = "rbxassetid://107150227368485",
+	Toggle = "rbxassetid://90411952142550",
+	Slider = "rbxassetid://85538382643347",
+	Keybind = "rbxassetid://121474456068237",
+	Text = "rbxassetid://133543553793564",
+	Settings = "rbxassetid://80758916183665",
+	Dropdown = "rbxassetid://134243273101015",
+	Color = "rbxassetid://86350350950064",
+	Input = "rbxassetid://107551944047171",
 }
 
 -- Primitives & Helper Functions
@@ -142,9 +203,10 @@ local function pad(p, x, y)
 	return padInst
 end
 
-local function stroke(p, col, trans)
+local function stroke(p, colKey, trans)
 	local s = Instance.new("UIStroke", p)
-	s.Color, s.Transparency = col, trans or 0
+	s.Transparency = trans or 0
+	bindTheme(s, "Color", colKey or "Stroke")
 	return s
 end
 
@@ -171,6 +233,20 @@ local function serialize(val)
 	return "nil"
 end
 
+local function isTextLong(str, textSize, maxWidth)
+	if not str or str == "" then return false end
+	local w = 0
+	for i = 1, #str do
+		local b = string.byte(str, i)
+		if b >= 65 and b <= 90 then w += textSize * 0.65 -- uppercase
+		elseif b >= 97 and b <= 122 then w += textSize * 0.52 -- lowercase
+		elseif b >= 48 and b <= 57 then w += textSize * 0.55 -- digits
+		elseif b == 32 then w += textSize * 0.3 -- space
+		else w += textSize * 0.5 end
+	end
+	return w > maxWidth
+end
+
 function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, iconId)
 	local opt = type(optOrName) == "table" and optOrName or {
 		Name = optOrName or "Kvant",
@@ -181,27 +257,33 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 	}
 
 	if opt.Theme then Library:SetTheme(opt.Theme) end
-	local theme = Library.CurrentTheme
 	local T, F, Motion = Library.Config.Text, Library.Config.Fonts, Library.Config.Motion
 	local isSide = opt.SideTabs or false
 
 	local Defaults = {
 		Frame = { BorderSizePixel = 0 },
 		ScrollingFrame = { BorderSizePixel = 0, CanvasSize = UDim2.new(0, 0, 0, 0) },
-		TextLabel = { BackgroundTransparency = 1, BorderSizePixel = 0, FontFace = F.Medium, TextColor3 = theme.Text, TextSize = T.Label, TextXAlignment = Enum.TextXAlignment.Left },
+		TextLabel = { BackgroundTransparency = 1, BorderSizePixel = 0, FontFace = F.Medium, TextSize = T.Label, TextXAlignment = Enum.TextXAlignment.Left },
 		TextButton = { BorderSizePixel = 0, AutoButtonColor = false, Text = "" },
-		TextBox = { BorderSizePixel = 0, ClearTextOnFocus = false, FontFace = F.Medium, TextColor3 = theme.Text, TextSize = T.Body, PlaceholderColor3 = theme.SubText },
+		TextBox = { BorderSizePixel = 0, ClearTextOnFocus = false, FontFace = F.Medium, TextSize = T.Body },
 		ImageLabel = { BackgroundTransparency = 1, BorderSizePixel = 0 },
 		ImageButton = { BackgroundTransparency = 1, BorderSizePixel = 0, ScaleType = Enum.ScaleType.Fit },
 	}
 
-	local function Make(class, props)
+	local function Make(class, props, themeBinds)
 		local inst = Instance.new(class)
 		inst.Name = getName()
 		local d = Defaults[class]
 		if d then for k, v in d do inst[k] = v end end
-		for k, v in props do if k ~= "Parent" then inst[k] = v end end
-		if props.Parent then inst.Parent = props.Parent end
+		for k, v in props do if k ~= "Parent" and k ~= "FontWeight" then inst[k] = v end end
+		if themeBinds then
+			for prop, key in themeBinds do bindTheme(inst, prop, key) end
+		end
+		if (class == "TextLabel" or class == "TextButton" or class == "TextBox") and inst.FontFace ~= F.Icons then
+			local w = props and props.FontWeight or (inst.FontFace == F.Bold and "Bold" or "Medium")
+			bindFont(inst, w)
+		end
+		if props and props.Parent then inst.Parent = props.Parent end
 		return inst
 	end
 
@@ -256,16 +338,17 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 	end
 
 	local function hover(btn, target, enterProps, leaveProps)
-		conn(btn.MouseEnter, function() tw(target, Motion.Fast, enterProps) end)
-		conn(btn.MouseLeave, function() tw(target, Motion.Fast, leaveProps) end)
+		conn(btn.MouseEnter, function() tw(target, Motion.Fast, typeof(enterProps) == "function" and enterProps() or enterProps) end)
+		conn(btn.MouseLeave, function() tw(target, Motion.Fast, typeof(leaveProps) == "function" and leaveProps() or leaveProps) end)
 	end
 
 	local function mkicon(id, kind, parent, size, isMuted)
 		local imgId = id == nil and Icons[kind] or id
 		if not imgId then return end
-		local iconColor = (isMuted and Library.CurrentTheme.IconMuted) or Library.CurrentTheme.Icon
-		local img = Make("ImageLabel", { LayoutOrder = 1, Size = size, Image = imgId,ImageColor3 = iconColor, Visible = iconsOn, Parent = parent })
-		table.insert(icons, { Instance = img, Muted = isMuted or false })
+		local img = Make("ImageLabel", { LayoutOrder = 1, Size = size, Image = imgId, Visible = iconsOn, Parent = parent }, {
+			ImageColor3 = isMuted and "IconMuted" or "Icon"
+		})
+		table.insert(icons, { inst = img, muted = isMuted or false })
 		return img
 	end
 
@@ -282,10 +365,9 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			Position = UDim2.new(0.5, 0, 0.5, 0),
 			Size = UDim2.new(0, 12, 0, 12),
 			Image = Icons.Dropdown,
-			ImageColor3 = theme.SubText,
 			Visible = iconsOn,
 			Parent = holder,
-		})
+		}, { ImageColor3 = "SubText" })
 		local txt = Make("TextLabel", {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0.5, 0, 0.5, 0),
@@ -293,11 +375,10 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			FontFace = F.Icons,
 			Text = "",
 			TextSize = T.Small,
-			TextColor3 = theme.SubText,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Visible = not iconsOn,
 			Parent = holder,
-		})
+		}, { TextColor3 = "SubText" })
 		local ind = { img = img, txt = txt, isDropdown = isDropdown }
 		local function setOpen(open)
 			if isDropdown then
@@ -310,18 +391,16 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		end
 		setOpen(false)
 		table.insert(indicators, ind)
-		table.insert(icons, img)
 		return holder, setOpen
 	end
 
 	local function styleScroll(f, horiz)
 		f.ScrollBarThickness = 3
-		f.ScrollBarImageColor3 = theme.SubText
+		bindTheme(f, "ScrollBarImageColor3", "SubText")
 		f.ScrollBarImageTransparency = 0.25
 		if horiz then f.HorizontalScrollBarInset = Enum.ScrollBarInset.Always else f.VerticalScrollBarInset = Enum.ScrollBarInset.Always end
 	end
 
-	-- Universal Input Dragging
 	local activeMove, dragMoved = nil, false
 	conn(UserInputService.InputChanged, function(i)
 		if activeMove and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
@@ -355,17 +434,16 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 
 	local winSize = opt.Size or (isSide and UDim2.new(0.42, 0, 0.62, 0) or UDim2.new(0.3, 0, 0.6, 0))
 	local main = Make("Frame", {
-		BackgroundColor3 = theme.Background,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0.5, 0),
 		Size = winSize,
 		Active = true,
 		ClipsDescendants = true,
 		Parent = gui,
-	})
+	}, { BackgroundColor3 = "Background" })
 	local defaultPosition = main.Position
 	corner(main, 10)
-	stroke(main, theme.Stroke)
+	stroke(main, "Stroke")
 
 	local mainConstraint = Instance.new("UISizeConstraint", main)
 	mainConstraint.MinSize = opt.MinSize or (isSide and Vector2.new(460, 400) or Vector2.new(320, 400))
@@ -377,7 +455,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 	notifLayout.VerticalAlignment, notifLayout.HorizontalAlignment, notifLayout.Padding = Enum.VerticalAlignment.Bottom, Enum.HorizontalAlignment.Right, UDim.new(0, 8)
 
 	-- Topbar
-	local topbar = Make("Frame", { BackgroundColor3 = theme.Secondary, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 44), ZIndex = 5, Parent = main })
+	local topbar = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 44), ZIndex = 5, Parent = main }, { BackgroundColor3 = "Secondary" })
 	corner(topbar, 10)
 
 	local titleRow = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -130, 1, 0), Position = UDim2.new(0, 16, 0, 0), Parent = topbar })
@@ -385,31 +463,29 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 	trl.FillDirection, trl.VerticalAlignment, trl.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 10)
 
 	mkicon(opt.Icon, "Kvant", titleRow, UDim2.new(0, 20, 0, 20))
-	Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -30, 1, 0), FontFace = F.Bold, Text = opt.Name or "Kvant", TextSize = T.Title, TextTruncate = Enum.TextTruncate.AtEnd, Parent = titleRow })
+	Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -30, 1, 0), FontWeight = "Bold", Text = opt.Name or "Kvant", TextSize = T.Title, TextTruncate = Enum.TextTruncate.AtEnd, Parent = titleRow }, { TextColor3 = "Text" })
 
 	local controls = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(0, 0, 1, 0), Position = UDim2.new(1, -12, 0, 0), Parent = topbar })
 	local ctrlList = Instance.new("UIListLayout", controls)
 	ctrlList.FillDirection, ctrlList.VerticalAlignment, ctrlList.HorizontalAlignment, ctrlList.SortOrder, ctrlList.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, Enum.HorizontalAlignment.Right, Enum.SortOrder.LayoutOrder, UDim.new(0, 10)
 
-	local settingsBtn = Make("ImageButton", { Size = UDim2.new(0, 20, 0, 20), Image = Icons.Settings, ImageColor3 = theme.Text, LayoutOrder = 1, Parent = controls })
-	local minBtn = Make("ImageButton", { Size = UDim2.new(0, 20, 0, 20), Image = "rbxassetid://10137941941", ImageColor3 = theme.Text, LayoutOrder = 2, Parent = controls })
-	local closeBtn = Make("ImageButton", { Size = UDim2.new(0, 22, 0, 22), Image = "rbxassetid://10137832201", ImageColor3 = theme.Text, Visible = false, LayoutOrder = 3, Parent = controls })
+	local settingsBtn = Make("ImageButton", { Size = UDim2.new(0, 20, 0, 20), Image = Icons.Settings, LayoutOrder = 1, Parent = controls }, { ImageColor3 = "Icon" })
+	local minBtn = Make("ImageButton", { Size = UDim2.new(0, 20, 0, 20), Image = "rbxassetid://10137941941", LayoutOrder = 2, Parent = controls }, { ImageColor3 = "Icon" })
+	local closeBtn = Make("ImageButton", { Size = UDim2.new(0, 22, 0, 22), Image = "rbxassetid://10137832201", Visible = false, LayoutOrder = 3, Parent = controls }, { ImageColor3 = "Icon" })
 
 	for _, btn in { settingsBtn, minBtn, closeBtn } do
-		hover(btn, btn, { ImageColor3 = theme.Accent }, { ImageColor3 = theme.Icon })
+		hover(btn, btn, function() return { ImageColor3 = Library.CurrentTheme.Accent } end, function() return { ImageColor3 = Library.CurrentTheme.Icon } end)
 	end
 	makeDraggable(main, topbar)
 
-	-- Minimized Pill
 	local pill = Make("TextButton", {
-		BackgroundColor3 = theme.Secondary,
 		Visible = false,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0.04, 0),
 		Size = UDim2.new(0, 0, 0, 36),
 		AutomaticSize = Enum.AutomaticSize.X,
 		Parent = gui,
-	})
+	}, { BackgroundColor3 = "Secondary" })
 	corner(pill, 18)
 	pad(pill, 16, 0)
 	local pillConstraint = Instance.new("UISizeConstraint", pill)
@@ -420,33 +496,30 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 	layout.VerticalAlignment = Enum.VerticalAlignment.Center
 
 	local label = Make("TextLabel", {
-		BackgroundTransparency = 1,
 		Size = UDim2.new(0, 0, 1, 0),
 		AutomaticSize = Enum.AutomaticSize.X,
 		Text = opt.Name or "Kvant",
-		FontFace = F.Medium,
 		TextSize = T.Label,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Parent = pill,
-	})
+	}, { TextColor3 = "Text" })
 	local labelConstraint = Instance.new("UISizeConstraint", label)
-	labelConstraint.MaxSize = Vector2.new(248, math.huge) -- MaxSize.X = 280 - horizontal padding (16 * 2 = 32) -> 248
-	local pillStroke = stroke(pill, theme.Stroke)
-	hover(pill, pillStroke, { Color = theme.Accent }, { Color = theme.Stroke })
+	labelConstraint.MaxSize = Vector2.new(248, math.huge)
+	local pillStroke = stroke(pill, "Stroke")
+	hover(pill, pillStroke, function() return { Color = Library.CurrentTheme.Accent } end, function() return { Color = Library.CurrentTheme.Stroke } end)
 	makeDraggable(pill)
 
 	-- Window Layouts
 	local tabHolder, pageHolder
 	if isSide then
 		tabHolder = Make("ScrollingFrame", {
-			BackgroundColor3 = theme.Secondary,
 			Position = UDim2.new(0, 0, 0, 44),
 			Size = UDim2.new(0.30, 0, 1, -44),
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			Parent = main,
-		})
+		}, { BackgroundColor3 = "Secondary" })
 		corner(tabHolder, 10)
 		styleScroll(tabHolder, false)
 		pad(tabHolder, 0, 10)
@@ -454,7 +527,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		local tabList = Instance.new("UIListLayout", tabHolder)
 		tabList.SortOrder, tabList.HorizontalAlignment, tabList.Padding = Enum.SortOrder.LayoutOrder, Enum.HorizontalAlignment.Center, UDim.new(0, 6)
 
-		Make("Frame", { BackgroundColor3 = theme.Stroke, Position = UDim2.new(0.30, 0, 0, 44), Size = UDim2.new(0, 1, 1, -44), Parent = main })
+		Make("Frame", { Position = UDim2.new(0.30, 0, 0, 44), Size = UDim2.new(0, 1, 1, -44), Parent = main }, { BackgroundColor3 = "Stroke" })
 		pageHolder = Make("Frame", { BackgroundTransparency = 1, Position = UDim2.new(0.30, 0, 0, 44), Size = UDim2.new(0.7, 0, 1, -44), Parent = main })
 	else
 		tabHolder = Make("ScrollingFrame", {
@@ -474,36 +547,92 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 	pad(pageHolder, 16, 12)
 
 	-- Window Behaviors & Controls
-	local minimized, unlockCursor, savedMouseBehavior = false, false, nil
+	local minimized, unlockCursor, savedMouseBehavior, isAnimating = false, false, nil, false
+
+	-- TODO: Transfer this
+	local baseScale = 1
+	local FastMotion = TweenInfo.new(0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	-- Fallback cursor for games that hide or blank the system pointer (needs more testing)
+	local virtualCursor = Make("ImageLabel", {
+		Size = UDim2.new(0, 18, 0, 18),
+		Image = "rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png",
+		BackgroundTransparency = 1,
+		ZIndex = 1000000,
+		Visible = false,
+		Parent = gui,
+	}, { ImageColor3 = "Text" })
+
 	local function applyCursorState()
 		if unlockCursor and not minimized then
 			savedMouseBehavior = savedMouseBehavior or UserInputService.MouseBehavior
 			task.spawn(function()
 				while unlockCursor and not minimized do
-					UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+					local isHoldingRmb = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+					if isHoldingRmb then
+						UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+						virtualCursor.Visible = false
+					else
+						UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+						UserInputService.MouseIconEnabled = true
+						-- Show fallback pointer
+						local isNativeHidden = not UserInputService.MouseIconEnabled
+						virtualCursor.Visible = isNativeHidden
+						if isNativeHidden then
+							local mLoc = UserInputService:GetMouseLocation()
+							virtualCursor.Position = UDim2.new(0, mLoc.X, 0, mLoc.Y)
+						end
+					end
 					task.wait()
 				end
+				virtualCursor.Visible = false
 				if savedMouseBehavior then
 					UserInputService.MouseBehavior = savedMouseBehavior
 					savedMouseBehavior = nil
 				end
 			end)
-		elseif savedMouseBehavior then
-			UserInputService.MouseBehavior = savedMouseBehavior
-			savedMouseBehavior = nil
+		else
+			virtualCursor.Visible = false
+			if savedMouseBehavior then
+				UserInputService.MouseBehavior = savedMouseBehavior
+				savedMouseBehavior = nil
+			end
 		end
 	end
 
 	local function toggleWindow()
+		if isAnimating then return end
 		minimized = not minimized
+		local curPos = main.Position
 		if minimized then
-			tw(main, Motion.Normal, { BackgroundTransparency = 1 })
-			main.Visible, pill.Visible = false, true
+			if reduceMotion then
+				main.Visible, pill.Visible = false, true
+			else
+				isAnimating = true
+				local offPos = UDim2.new(curPos.X.Scale, curPos.X.Offset, curPos.Y.Scale, curPos.Y.Offset - 8)
+				local t = TweenService:Create(main, FastMotion, { Position = offPos })
+				local ts = TweenService:Create(uiScale, FastMotion, { Scale = baseScale * 0.96 })
+				t:Play(); ts:Play()
+				t.Completed:Connect(function()
+					if minimized then main.Visible, pill.Visible = false, true end
+					main.Position, uiScale.Scale = curPos, baseScale
+					isAnimating = false
+				end)
+			end
 		else
-			main.Visible = true
-			main.Size = UDim2.new(winSize.X.Scale, winSize.X.Offset, 0, 44)
 			pill.Visible = false
-			tw(main, Motion.Normal, { BackgroundTransparency = 0, Size = winSize })
+			main.Visible = true
+			if reduceMotion then
+				uiScale.Scale = baseScale
+			else
+				isAnimating = true
+				main.Position = UDim2.new(curPos.X.Scale, curPos.X.Offset, curPos.Y.Scale, curPos.Y.Offset - 8)
+				uiScale.Scale = baseScale * 0.96
+				local t = TweenService:Create(main, FastMotion, { Position = curPos })
+				local ts = TweenService:Create(uiScale, FastMotion, { Scale = baseScale })
+				t:Play(); ts:Play()
+				t.Completed:Connect(function() isAnimating = false end)
+			end
 		end
 		applyCursorState()
 	end
@@ -522,11 +651,11 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 
 	function window:Notify(text, duration)
 		if not notificationsEnabled then return end
-		local n = Make("Frame", { BackgroundColor3 = theme.Secondary, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = notifHolder })
+		local n = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = notifHolder }, { BackgroundColor3 = "Secondary" })
 		corner(n, 8)
-		local s = stroke(n, theme.Stroke, 1)
+		local s = stroke(n, "Stroke", 1)
 		pad(n, 14, 10)
-		local l = Make("TextLabel", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = T.Label, TextWrapped = true, TextTransparency = 1, Text = text, Parent = n })
+		local l = Make("TextLabel", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = T.Label, TextWrapped = true, TextTransparency = 1, Text = text, Parent = n }, { TextColor3 = "Text" })
 
 		tw(n, Motion.Panel, { BackgroundTransparency = 0 })
 		tw(s, Motion.Panel, { Transparency = 0 })
@@ -547,12 +676,13 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		local isSettings = registry == KvantConfig
 
 		local btn = Make("TextButton", {
-			BackgroundColor3 = theme.Secondary,
 			Size = isSide and UDim2.new(0.9, 0, 0, 36) or UDim2.new(0, 0, 0, 38),
 			AutomaticSize = isSide and Enum.AutomaticSize.None or Enum.AutomaticSize.X,
 			LayoutOrder = tabIndex,
 			Visible = not isSettings,
 			Parent = tabHolder,
+		}, {
+			BackgroundColor3 = function(th) return activeIndex == tabIndex and th.Accent or th.Secondary end,
 		})
 		corner(btn, isSide and 7 or 19)
 		pad(btn, isSide and 10 or 14, 0)
@@ -566,9 +696,10 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			AutomaticSize = Enum.AutomaticSize.X,
 			Size = isSide and UDim2.new(1, -24, 1, 0) or UDim2.new(0, 0, 1, 0),
 			Text = tabName,
-			TextColor3 = theme.SubText,
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			Parent = btn,
+		}, {
+			TextColor3 = function(th) return activeIndex == tabIndex and th.AccentText or th.SubText end,
 		})
 
 		local page = Make("ScrollingFrame", {
@@ -584,40 +715,29 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		pl.SortOrder, pl.Padding = Enum.SortOrder.LayoutOrder, UDim.new(0, 10)
 
 		local function activate()
-			for i, p in tabPages do
-				p.Visible = false
-				tabLabels[i].TextColor3 = theme.SubText
-				if tabBtns[i].Visible then tabBtns[i].BackgroundColor3 = theme.Secondary end
-			end
-			page.Visible = true
 			activeIndex = tabIndex
-			if btn.Visible then
-				label.TextColor3 = theme.AccentText
-				btn.BackgroundColor3 = theme.Accent
-			end
 			if not isSettings then lastUserIndex = tabIndex end
+			for i, p in tabPages do
+				local isCur = (i == activeIndex)
+				p.Visible = isCur
+				if tabBtns[i].Visible then
+					tabBtns[i].BackgroundColor3 = isCur and Library.CurrentTheme.Accent or Library.CurrentTheme.Secondary
+					tabLabels[i].TextColor3 = isCur and Library.CurrentTheme.AccentText or Library.CurrentTheme.SubText
+				end
+			end
 		end
 
-		-- TODO: refactor later
-		local function hoverTab(btn, label, index)
-			conn(btn.MouseEnter, function()
+		local function hoverTab(b, l, index)
+			conn(b.MouseEnter, function()
 				if activeIndex ~= index then
-					tw(btn, Motion.Fast, {
-						BackgroundColor3 = theme.Accent
-					})
-					tw(label, Motion.Fast, {
-						TextColor3 = theme.AccentText
-					})
+					tw(b, Motion.Fast, { BackgroundColor3 = Library.CurrentTheme.Accent })
+					tw(l, Motion.Fast, { TextColor3 = Library.CurrentTheme.AccentText })
 				end
 			end)
-			conn(btn.MouseLeave, function()
+			conn(b.MouseLeave, function()
 				if activeIndex ~= index then
-					tw(btn, Motion.Fast, {
-						BackgroundColor3 = theme.Secondary
-					})
-					tw(label, Motion.Fast, {
-						TextColor3 = theme.SubText
-					})
+					tw(b, Motion.Fast, { BackgroundColor3 = Library.CurrentTheme.Secondary })
+					tw(l, Motion.Fast, { TextColor3 = Library.CurrentTheme.SubText })
 				end
 			end)
 		end
@@ -634,7 +754,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		local function configKey(kind, name) return tabName .. ">" .. kind .. ":" .. name end
 
 		local function card(h)
-			local f = Make("Frame", { LayoutOrder = nextOrder(), BackgroundColor3 = theme.Secondary, Size = UDim2.new(1, 0, 0, h), Parent = targetParent })
+			local f = Make("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, h), Parent = targetParent }, { BackgroundColor3 = "Secondary" })
 			corner(f, 8)
 			pad(f, 16, 0)
 			return f
@@ -645,7 +765,8 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			local rl = Instance.new("UIListLayout", row)
 			rl.FillDirection, rl.VerticalAlignment, rl.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 10)
 			mkicon(iconName, kind, row, UDim2.new(0, 16, 0, 16))
-			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -26, 1, 0), Text = text, TextTruncate = Enum.TextTruncate.AtEnd, Parent = row })
+			local l = Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -26, 1, 0), Text = text, TextTruncate = Enum.TextTruncate.AtEnd, Parent = row }, { TextColor3 = "Text" })
+			return l
 		end
 
 		function tab:Section(text, collapsed, builder)
@@ -657,7 +778,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			hl.FillDirection, hl.VerticalAlignment, hl.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 6)
 
 			local holder, setChevron = newIndicator(header, false)
-			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -20, 1, 0), FontFace = F.Bold, Text = text, TextColor3 = theme.SubText, Parent = header })
+			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -20, 1, 0), FontWeight = "Bold", Text = text, Parent = header }, { TextColor3 = "SubText" })
 
 			local container = Make("Frame", { BackgroundTransparency = 1, LayoutOrder = nextOrder(), AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0), Visible = not collapsed, Parent = targetParent })
 			local cl = Instance.new("UIListLayout", container)
@@ -670,7 +791,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				targetParent, order = oldP, oldO
 			end
 
-			if #container:GetChildren() < 2 then -- No items, can't be collapsible
+			if #container:GetChildren() < 2 then
 				holder.Visible = false
 				header.Active = false
 			end
@@ -684,11 +805,11 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		end
 
 		function tab:Divider()
-			Make("Frame", { LayoutOrder = nextOrder(), BackgroundColor3 = theme.Stroke, Size = UDim2.new(1, 0, 0, 1), Parent = targetParent })
+			Make("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 1), Parent = targetParent }, { BackgroundColor3 = "Stroke" })
 		end
 
 		function tab:Text(title, content, iconName)
-			local f = Make("Frame", { LayoutOrder = nextOrder(), BackgroundColor3 = theme.Secondary, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = targetParent })
+			local f = Make("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = targetParent }, { BackgroundColor3 = "Secondary" })
 			corner(f, 8)
 			pad(f, 16, 14)
 			local vl = Instance.new("UIListLayout", f)
@@ -699,19 +820,19 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			hl.FillDirection, hl.VerticalAlignment, hl.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 8)
 
 			mkicon(iconName, "Text", head, UDim2.new(0, 18, 0, 18))
-			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -26, 1, 0), FontFace = F.Bold, Text = title, TextSize = T.Title, TextTruncate = Enum.TextTruncate.AtEnd, Parent = head })
-			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextColor3 = theme.SubText, TextSize = T.Body, TextWrapped = true, Text = content, Parent = f })
+			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -26, 1, 0), FontWeight = "Bold", Text = title, TextSize = T.Title, TextTruncate = Enum.TextTruncate.AtEnd, Parent = head }, { TextColor3 = "Text" })
+			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = T.Body, TextWrapped = true, Text = content, Parent = f }, { TextColor3 = "SubText" })
 		end
 
 		function tab:Button(text, callback, iconName)
 			local f = card(46)
 			rowLabel(f, iconName, "Button", text, 0)
 			local clickBtn = Make("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = f })
-			local s = stroke(f, theme.Stroke, 0.7)
+			local s = stroke(f, "Stroke", 0.7)
 			hover(clickBtn, s, { Transparency = 0.2 }, { Transparency = 0.7 })
 			clickBtn.Activated:Connect(function()
-				tw(f, Motion.Fast, { BackgroundColor3 = theme.Accent })
-				task.delay(0.12, function() tw(f, Motion.Normal, { BackgroundColor3 = theme.Secondary }) end)
+				tw(f, Motion.Fast, { BackgroundColor3 = Library.CurrentTheme.Accent })
+				task.delay(0.12, function() tw(f, Motion.Normal, { BackgroundColor3 = Library.CurrentTheme.Secondary }) end)
 				callback()
 			end)
 		end
@@ -719,20 +840,22 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		function tab:Toggle(text, default, callback, iconName)
 			local f = card(46)
 			rowLabel(f, iconName, "Toggle", text, 46)
-			local sw = Make("Frame", { BackgroundColor3 = default and theme.Accent or theme.Stroke, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, 40, 0, 22), Parent = f })
+			local sw = Make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, 40, 0, 22), Parent = f })
 			corner(sw, 11)
 			local circ = Make("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8), Size = UDim2.new(0, 16, 0, 16), Parent = sw })
 			corner(circ, 8)
 
 			local clickBtn = Make("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = f })
-			local s = stroke(f, theme.Stroke, 0.7)
+			local s = stroke(f, "Stroke", 0.7)
 			hover(clickBtn, s, { Transparency = 0.2 }, { Transparency = 0.7 })
 
 			local state = default and true or false
+			bindTheme(sw, "BackgroundColor3", function(th) return state and th.Accent or th.Stroke end)
+
 			local function apply(newState, imm)
 				state = newState
 				local pos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
-				local col = state and theme.Accent or theme.Stroke
+				local col = state and Library.CurrentTheme.Accent or Library.CurrentTheme.Stroke
 				if imm then circ.Position, sw.BackgroundColor3 = pos, col else
 					tw(circ, Motion.Normal, { Position = pos })
 					tw(sw, Motion.Normal, { BackgroundColor3 = col })
@@ -758,13 +881,13 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			rl.FillDirection, rl.VerticalAlignment, rl.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 8)
 
 			mkicon(iconName, "Slider", row, UDim2.new(0, 14, 0, 14))
-			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(0.6, 0, 1, 0), Text = text, Parent = row })
+			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(0.6, 0, 1, 0), Text = text, Parent = row }, { TextColor3 = "Text" })
 
-			local val = Make("TextLabel", { Size = UDim2.new(0.3, 0, 0, 22), Position = UDim2.new(0.7, 0, 0, 10), FontFace = F.Bold, Text = fmt(default), TextColor3 = theme.Accent, TextXAlignment = Enum.TextXAlignment.Right, Parent = f })
-			local bar = Make("Frame", { BackgroundColor3 = theme.Stroke, Position = UDim2.new(0, 0, 0, 46), Size = UDim2.new(1, 0, 0, 6), Parent = f })
+			local val = Make("TextLabel", { Size = UDim2.new(0.3, 0, 0, 22), Position = UDim2.new(0.7, 0, 0, 10), FontWeight = "Bold", Text = fmt(default), TextXAlignment = Enum.TextXAlignment.Right, Parent = f }, { TextColor3 = "Accent" })
+			local bar = Make("Frame", { Position = UDim2.new(0, 0, 0, 46), Size = UDim2.new(1, 0, 0, 6), Parent = f }, { BackgroundColor3 = "Stroke" })
 			corner(bar, 3)
 
-			local fill = Make("Frame", { BackgroundColor3 = theme.Accent, Size = UDim2.new((default - min) / (max - min), 0, 1, 0), Parent = bar })
+			local fill = Make("Frame", { Size = UDim2.new((default - min) / (max - min), 0, 1, 0), Parent = bar }, { BackgroundColor3 = "Accent" })
 			corner(fill, 3)
 			local knob = Make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, 12, 0, 12), BackgroundColor3 = Color3.new(1, 1, 1), Parent = fill })
 			corner(knob, 6)
@@ -804,9 +927,9 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			local selected = {}
 			if multi then for _, v in default do selected[v] = true end else default = default or options[1] end
 
-			local f = card(46)
+			local f = card(50)
 			f.ClipsDescendants = true
-			local s = stroke(f, theme.Stroke, 0.7)
+			stroke(f, "Stroke", 0.7)
 
 			local function getSelectedList()
 				local list = {}
@@ -814,31 +937,59 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				return list
 			end
 
-			local function getLabel()
-				if not multi then return text .. ": " .. tostring(default) end
+			local function getDisplayText()
+				if not multi then return tostring(default or "Select...") end
 				local list = getSelectedList()
-				return text .. ": " .. (#list == 0 and "None" or table.concat(list, ", "))
+				return #list == 0 and "Select..." or table.concat(list, ", ")
 			end
 
-			local head = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 46), Parent = f })
-			rowLabel(head, iconName, nil, getLabel(), 40)
-			local _, setChevron = newIndicator(head, true)
+			local head = Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 50), Parent = f })
+			rowLabel(head, iconName, "Dropdown", text, 170)
 
-			local listHolder = Make("Frame", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 46), Size = UDim2.new(1, 0, 0, 0), Parent = f })
+			local selector = Make("Frame", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, 0, 0.5, 0),
+				Size = UDim2.new(0, 160, 0, 34),
+				ClipsDescendants = true,
+				Parent = head,
+			}, { BackgroundColor3 = "Background" })
+			corner(selector, 6)
+			local selStroke = stroke(selector, "Stroke", 0.6)
+
+			local selLabel = Make("TextLabel", {
+				Position = UDim2.new(0, 10, 0, 0),
+				Size = UDim2.new(1, -28, 1, 0),
+				Text = getDisplayText(),
+				TextSize = T.Body,
+				Parent = selector,
+			}, { TextColor3 = "Text" })
+
+			local _, setChevron = newIndicator(selector, true)
+
+			local function updateAlign()
+				local str = getDisplayText()
+				local isLong = isTextLong(str, T.Body, 122)
+				selLabel.TextXAlignment = isLong and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+				selLabel.TextTruncate = isLong and Enum.TextTruncate.AtEnd or Enum.TextTruncate.None
+			end
+			updateAlign()
+
+			local listHolder = Make("Frame", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 50), Size = UDim2.new(1, 0, 0, 0), Parent = f })
 			local vl = Instance.new("UIListLayout", listHolder)
 			vl.SortOrder, vl.Padding = Enum.SortOrder.LayoutOrder, UDim.new(0, 6)
 
-			local clickBtn = Make("TextButton", { Size = UDim2.new(1, 0, 0, 46), BackgroundTransparency = 1, Parent = f })
-			hover(clickBtn, s, { Transparency = 0.2 }, { Transparency = 0.7 })
+			local clickBtn = Make("TextButton", { Size = UDim2.new(1, 0, 0, 50), BackgroundTransparency = 1, Parent = f })
+			hover(clickBtn, selStroke, function() return { Color = Library.CurrentTheme.Accent, Transparency = 0.1 } end, function() return { Color = Library.CurrentTheme.Stroke, Transparency = 0.6 } end)
 
 			local opened, optBtns = false, {}
 			local function refresh()
-				head:FindFirstChildOfClass("Frame"):FindFirstChildOfClass("TextLabel").Text = getLabel()
+				selLabel.Text = getDisplayText()
+				updateAlign()
 				for i, opt in optBtns do
 					local v = options[i]
 					local isSel = multi and selected[v] or (v == default)
-					opt.BackgroundColor3 = isSel and theme.Accent or theme.Background
-					opt.TextColor3 = isSel and theme.AccentText or theme.SubText
+					opt.BackgroundColor3 = isSel and Library.CurrentTheme.Accent or Library.CurrentTheme.Background
+					opt.TextColor3 = isSel and Library.CurrentTheme.AccentText or Library.CurrentTheme.SubText
 				end
 			end
 
@@ -846,16 +997,15 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				for _, b in optBtns do b:Destroy() end
 				table.clear(optBtns)
 				for i, v in options do
-					local isSel = multi and selected[v] or (v == default)
 					local opt = Make("TextButton", {
 						LayoutOrder = i,
-						BackgroundColor3 = isSel and theme.Accent or theme.Background,
 						Size = UDim2.new(1, 0, 0, 32),
-						FontFace = F.Medium,
 						Text = tostring(v),
-						TextColor3 = isSel and theme.AccentText or theme.SubText,
 						TextSize = T.Body,
 						Parent = listHolder,
+					}, {
+						BackgroundColor3 = function(th) return (multi and selected[v] or v == default) and th.Accent or th.Background end,
+						TextColor3 = function(th) return (multi and selected[v] or v == default) and th.AccentText or th.SubText end,
 					})
 					corner(opt, 6)
 					opt.Activated:Connect(function()
@@ -866,7 +1016,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 							default = v
 							opened = false
 							setChevron(false)
-							tw(f, Motion.Normal, { Size = UDim2.new(1, 0, 0, 46) })
+							tw(f, Motion.Normal, { Size = UDim2.new(1, 0, 0, 50) })
 							callback(v)
 						end
 						refresh()
@@ -880,7 +1030,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			clickBtn.Activated:Connect(function()
 				opened = not opened
 				setChevron(opened)
-				tw(f, Motion.Normal, { Size = UDim2.new(1, 0, 0, opened and (#options * 38 + 52) or 46) })
+				tw(f, Motion.Normal, { Size = UDim2.new(1, 0, 0, opened and (#options * 38 + 58) or 50) })
 			end)
 
 			regConfig(registry, configKey("Dropdown", text), multi and getSelectedList() or default, function()
@@ -909,26 +1059,24 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			local f = card(46)
 			rowLabel(f, iconName, "Keybind", text, 110)
 			local bind = Make("TextButton", {
-				BackgroundColor3 = theme.Background,
 				AnchorPoint = Vector2.new(1, 0.5),
 				Position = UDim2.new(1, 0, 0.5, 0),
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.new(0, 0, 0, 30),
-				FontFace = F.Bold,
+				FontWeight = "Bold",
 				Text = default and default.Name or "None",
-				TextColor3 = theme.Text,
 				TextSize = T.Body,
 				Parent = f,
-			})
+			}, { BackgroundColor3 = "Background", TextColor3 = "Text" })
 			corner(bind, 6)
 			pad(bind, 8, 0)
-			local bs = stroke(bind, theme.Stroke, 0.5)
+			local bs = stroke(bind, "Stroke", 0.5)
 
 			local key, listening = default, false
 			bind.Activated:Connect(function()
 				listening = true
 				bind.Text = "..."
-				tw(bs, Motion.Fast, { Color = theme.Accent, Transparency = 0 })
+				tw(bs, Motion.Fast, { Color = Library.CurrentTheme.Accent, Transparency = 0 })
 			end)
 
 			conn(UserInputService.InputBegan, function(i, gpe)
@@ -936,7 +1084,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 					key = (i.KeyCode == Enum.KeyCode.Backspace or i.KeyCode == Enum.KeyCode.Escape) and nil or i.KeyCode
 					bind.Text = key and key.Name or "None"
 					listening = false
-					tw(bs, Motion.Fast, { Color = theme.Stroke, Transparency = 0.5 })
+					tw(bs, Motion.Fast, { Color = Library.CurrentTheme.Stroke, Transparency = 0.5 })
 					requestSave(registry)
 				elseif not gpe and key and i.KeyCode == key then
 					callback()
@@ -953,9 +1101,8 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 
 		function tab:Input(text, placeholder, callback, default, iconName)
 			local f = card(50)
-			rowLabel(f, iconName, "Input", text, 150)
+			rowLabel(f, iconName, "Input", text, 170)
 			local box = Make("TextBox", {
-				BackgroundColor3 = theme.Background,
 				AnchorPoint = Vector2.new(1, 0.5),
 				Position = UDim2.new(1, 0, 0.5, 0),
 				Size = UDim2.new(0, 160, 0, 34),
@@ -964,17 +1111,28 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				TextSize = T.Body,
 				ClipsDescendants = true,
 				Parent = f,
-			})
+			}, { BackgroundColor3 = "Background", TextColor3 = "Text", PlaceholderColor3 = "SubText" })
 			corner(box, 6)
 			pad(box, 10, 0)
+			stroke(box, "Stroke", 0.6)
 
+			local function updateAlign()
+				local str = box.Text ~= "" and box.Text or box.PlaceholderText
+				local isLong = isTextLong(str, T.Body, 140)
+				box.TextXAlignment = isLong and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+			end
+
+			box:GetPropertyChangedSignal("Text"):Connect(updateAlign)
+			box.Focused:Connect(function() box.TextXAlignment = Enum.TextXAlignment.Left end)
 			box.FocusLost:Connect(function()
+				updateAlign()
 				callback(box.Text)
 				requestSave(registry)
 			end)
+			updateAlign()
 
 			regConfig(registry, configKey("Input", text), default or "", function() return box.Text end, function(v)
-				if type(v) == "string" then box.Text = v; callback(v) end
+				if type(v) == "string" then box.Text = v; updateAlign(); callback(v) end
 			end)
 		end
 
@@ -990,8 +1148,8 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 
 			local swatch = Make("TextButton", { BackgroundColor3 = col, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, 34, 0, 22), Parent = head })
 			corner(swatch, 6)
-			local sws = stroke(swatch, theme.Stroke)
-			hover(swatch, sws, { Color = theme.Accent }, { Color = theme.Stroke })
+			local sws = stroke(swatch, "Stroke")
+			hover(swatch, sws, function() return { Color = Library.CurrentTheme.Accent } end, function() return { Color = Library.CurrentTheme.Stroke } end)
 
 			local content = Make("Frame", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 46), Size = UDim2.new(1, 0, 0, 130), Visible = false, Parent = f })
 			local cl = Instance.new("UIListLayout", content)
@@ -1011,7 +1169,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 
 			local satCursor = Make("Frame", { Size = UDim2.new(0, 10, 0, 10), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(s, 0, 1 - v, 0), BackgroundColor3 = Color3.new(1, 1, 1), Parent = map })
 			corner(satCursor, 5)
-			stroke(satCursor, Color3.new(0, 0, 0), 0.3)
+			stroke(satCursor, "Stroke", 0.3)
 
 			local hueBar = Make("Frame", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 10), BackgroundColor3 = Color3.new(1, 1, 1), Parent = content })
 			corner(hueBar, 5)
@@ -1025,21 +1183,21 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 
 			local hueCursor = Make("Frame", { Size = UDim2.new(0, 8, 1, 4), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(h, 0, 0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), Parent = hueBar })
 			corner(hueCursor, 3)
-			stroke(hueCursor, Color3.new(0, 0, 0), 0.4)
+			stroke(hueCursor, "Stroke", 0.4)
 
 			local inRow = Make("Frame", { LayoutOrder = 3, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 26), Parent = content })
 			local irl = Instance.new("UIListLayout", inRow)
 			irl.FillDirection, irl.Padding = Enum.FillDirection.Horizontal, UDim.new(0, 6)
 
-			local hexBox = Make("TextBox", { LayoutOrder = 1, BackgroundColor3 = theme.Background, Size = UDim2.new(0.4, -4, 1, 0), Text = "#" .. col:ToHex():upper(), TextSize = T.Small, TextXAlignment = Enum.TextXAlignment.Center, Parent = inRow })
+			local hexBox = Make("TextBox", { LayoutOrder = 1, Size = UDim2.new(0.4, -4, 1, 0), Text = "#" .. col:ToHex():upper(), TextSize = T.Small, TextXAlignment = Enum.TextXAlignment.Center, Parent = inRow }, { BackgroundColor3 = "Background", TextColor3 = "Text" })
 			corner(hexBox, 6)
-			stroke(hexBox, theme.Stroke, 0.6)
+			stroke(hexBox, "Stroke", 0.6)
 
 			local chanBoxes = {}
 			for idx, name in { "R", "G", "B" } do
-				local b = Make("TextBox", { LayoutOrder = idx + 1, BackgroundColor3 = theme.Background, Size = UDim2.new(0.2, -4, 1, 0), PlaceholderText = name, Text = tostring(math.floor(col[name] * 255 + 0.5)), TextSize = T.Small, TextXAlignment = Enum.TextXAlignment.Center, Parent = inRow })
+				local b = Make("TextBox", { LayoutOrder = idx + 1, Size = UDim2.new(0.2, -4, 1, 0), PlaceholderText = name, Text = tostring(math.floor(col[name] * 255 + 0.5)), TextSize = T.Small, TextXAlignment = Enum.TextXAlignment.Center, Parent = inRow }, { BackgroundColor3 = "Background", TextColor3 = "Text", PlaceholderColor3 = "SubText" })
 				corner(b, 6)
-				stroke(b, theme.Stroke, 0.6)
+				stroke(b, "Stroke", 0.6)
 				chanBoxes[name] = b
 			end
 
@@ -1116,15 +1274,20 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 	-- Settings Tab
 	local settingsTab = createTab("Settings", Icons.Settings, KvantConfig)
 	settingsTab:Section("Interface", false, function(s)
-		s:Slider("UI Scale", 80, 120, 100, 1, function(v) uiScale.Scale = v / 100 end)
+		s:Dropdown("Theme", { "Darker", "Dark", "Vesper", "Light" }, function(v) Library:SetTheme(v) end, "Darker")
+		s:Dropdown("Font", { "Inter", "Roboto", "Ubuntu" }, function(v) Library:SetFont(v) end, "Inter")
+		s:Slider("UI Scale", 80, 120, 100, 1, function(v) baseScale = v / 100; if not minimized then uiScale.Scale = baseScale end end)
 		s:Toggle("Show Icons", true, function(st)
 			iconsOn = st
-			for _, ic in icons do ic.Visible = st end
-			for _, ind in indicators do ind.txt.Visible = not st end
+			for _, ic in icons do ic.inst.Visible = st end
+			for _, ind in indicators do
+				ind.img.Visible = st
+				ind.txt.Visible = not st
+			end
 		end)
 		s:Toggle("Close Button", false, function(st) closeBtn.Visible = st end)
 		s:Toggle("Reduce Motion", false, function(st) reduceMotion = st end)
-		s:Button("Reset Window Position", function() main.Position = defaultPosition end)
+		s:Button("Reset Window", function() main.Position = defaultPosition end)
 	end)
 
 	settingsTab:Section("Controls", false, function(s)
