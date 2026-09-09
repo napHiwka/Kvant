@@ -1,10 +1,18 @@
+-- TODO:
+-- style: correct code style format (lazy for now)
+
 -- LATER TODO:
+-- feat?? reset kvant settings
+-- feat?? collapse/uncollapse all sections?
+-- feat: lock/unlock functionality? can be done without library with simple if flag but will see.
+-- feat: toasts (or how it's called i forgor) on long hover with descriptin for toggles, buttons, etc???
 -- feat: auto-cache and auto-update when needed from github (if supported).
 -- feat: add customasset to bypass detection.
--- feat: toasts on long hower with descriptin for toggles, buttons, etc???
--- style: code still messy (check conn).
+-- style: better hover effect on other elements??
 -- style: BuilderIcons - find chevron icons for dropdowns
 -- style: BuilderIcons - replacement top frame header icons
+-- style: Better dropdown left lucide icon
+-- feat?? custom frame with content - like timers, etc...?
 
 -- Environment & Services
 local cloneref = cloneref or function(f) return f end
@@ -41,40 +49,34 @@ Library.Config = {
 
 local BuiltInThemes = {
 	Dark = {
-		Background = Color3.fromRGB(24, 24, 27),
-		Secondary = Color3.fromRGB(34, 34, 39),
-		Accent = Color3.fromRGB(34, 197, 94),
-		Stroke = Color3.fromRGB(50, 50, 58),
-		Text = Color3.fromRGB(245, 245, 247),
-		SubText = Color3.fromRGB(160, 160, 170),
+		Background = Color3.fromRGB(24, 24, 27),    Secondary  = Color3.fromRGB(34, 34, 39),
+		Accent     = Color3.fromRGB(34, 197, 94),   Stroke     = Color3.fromRGB(50, 50, 58),
+		Text       = Color3.fromRGB(245, 245, 247), SubText    = Color3.fromRGB(160, 160, 170),
 		AccentText = Color3.fromRGB(255, 255, 255),
 	},
 	Darker = {
-		Background = Color3.fromRGB(9, 9, 11),
-		Secondary = Color3.fromRGB(18, 18, 22),
-		Accent = Color3.fromRGB(34, 197, 94),
-		Stroke = Color3.fromRGB(32, 32, 38),
-		Text = Color3.fromRGB(240, 240, 243),
-		SubText = Color3.fromRGB(140, 140, 150),
+		Background = Color3.fromRGB(9, 9, 11),      Secondary  = Color3.fromRGB(18, 18, 22),
+		Accent     = Color3.fromRGB(34, 197, 94),   Stroke     = Color3.fromRGB(32, 32, 38),
+		Text       = Color3.fromRGB(240, 240, 243), SubText    = Color3.fromRGB(140, 140, 150),
 		AccentText = Color3.fromRGB(255, 255, 255),
 	},
 	Vesper = {
-		Background = Color3.fromRGB(16, 16, 16),
-		Secondary = Color3.fromRGB(24, 24, 24),
-		Accent = Color3.fromRGB(255, 199, 153),
-		Stroke = Color3.fromRGB(40, 40, 40),
-		Text = Color3.fromRGB(255, 255, 255),
-		SubText = Color3.fromRGB(160, 160, 160),
+		Background = Color3.fromRGB(16, 16, 16),    Secondary  = Color3.fromRGB(24, 24, 24),
+		Accent     = Color3.fromRGB(255, 199, 153), Stroke     = Color3.fromRGB(40, 40, 40),
+		Text       = Color3.fromRGB(255, 255, 255), SubText    = Color3.fromRGB(160, 160, 160),
 		AccentText = Color3.fromRGB(16, 16, 16),
 	},
 	Light = {
-		Background = Color3.fromRGB(246, 246, 246),
-		Secondary = Color3.fromRGB(255, 255, 255),
-		Accent = Color3.fromRGB(25, 118, 210),
-		Stroke = Color3.fromRGB(225, 225, 228),
-		Text = Color3.fromRGB(33, 33, 33),
-		SubText = Color3.fromRGB(117, 117, 117),
+		Background = Color3.fromRGB(246, 246, 246), Secondary  = Color3.fromRGB(255, 255, 255),
+		Accent     = Color3.fromRGB(25, 118, 210),  Stroke     = Color3.fromRGB(225, 225, 228),
+		Text       = Color3.fromRGB(33, 33, 33),    SubText    = Color3.fromRGB(117, 117, 117),
 		AccentText = Color3.fromRGB(255, 255, 255),
+	},
+	SolorizedLight = {
+		Background = Color3.fromRGB(253, 246, 227), Secondary  = Color3.fromRGB(238, 232, 213),
+		Accent     = Color3.fromRGB(172, 157, 87),  Stroke     = Color3.fromRGB(221, 214, 193),
+		Text       = Color3.fromRGB(101, 123, 131), SubText    = Color3.fromRGB(147, 161, 161),
+		AccentText = Color3.fromRGB(253, 246, 227),
 	},
 }
 
@@ -177,6 +179,44 @@ local Icons = {
 	Input = "rbxassetid://107551944047171",
 }
 
+-- Scoped Context Manager
+local contextStack = {}
+
+local function currentScope()
+	return contextStack[#contextStack]
+end
+
+local function withScope(scope, fn)
+	table.insert(contextStack, scope)
+	local ok, err = pcall(fn, scope)
+	table.remove(contextStack)
+	if not ok then error(err, 2) end
+end
+
+local DeclarativeMethods = {
+	"Tab", "Section", "Divider", "Text", "Button", "Toggle", "Slider", "Dropdown", "Keybind", "Input", "Color"
+}
+
+local function registerDeclaratives(target)
+	if type(target) ~= "table" then return end
+	for _, name in DeclarativeMethods do
+		target[name] = function(...)
+			local scope = currentScope()
+			if not scope or not scope[name] then
+				error(string.format("[Kvant] '%s' must be called within an active scope (Window, Tab, or Section)", name), 2)
+			end
+			return scope[name](scope, ...)
+		end
+	end
+end
+
+registerDeclaratives(Library)
+if type(getgenv) == "function" then pcall(registerDeclaratives, getgenv()) end
+if type(_G) == "table" then pcall(registerDeclaratives, _G) end
+pcall(function()
+	if type(getfenv) == "function" then registerDeclaratives(getfenv(0)) end
+end)
+
 -- Primitives & Helper Functions
 local nid = 0
 local function getName()
@@ -248,6 +288,22 @@ local function isTextLong(str, textSize, maxWidth)
 end
 
 function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, iconId)
+	pcall(function()
+		if type(getfenv) == "function" then registerDeclaratives(getfenv(2)) end
+	end)
+
+	-- You might not like it, but that's the way it is
+	local builder = nil
+	if type(optOrName) == "table" and type(optOrName.Builder) == "function" then
+		builder = optOrName.Builder
+	elseif type(sideTabs) == "function" then
+		builder, sideTabs = sideTabs, false
+	elseif type(customTheme) == "function" then
+		builder, customTheme = customTheme, nil
+	elseif type(iconId) == "function" then
+		builder, iconId = iconId, nil
+	end
+
 	local opt = type(optOrName) == "table" and optOrName or {
 		Name = optOrName or "Kvant",
 		SideTabs = sideTabs,
@@ -575,7 +631,6 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 					else
 						UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 						UserInputService.MouseIconEnabled = true
-						-- Show fallback pointer
 						local isNativeHidden = not UserInputService.MouseIconEnabled
 						virtualCursor.Visible = isNativeHidden
 						if isNativeHidden then
@@ -671,85 +726,10 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		end)
 	end
 
-	local function createTab(tabName, tabIcon, registry)
-		local tabIndex = #tabPages + 1
-		local isSettings = registry == KvantConfig
-
-		local btn = Make("TextButton", {
-			Size = isSide and UDim2.new(0.9, 0, 0, 36) or UDim2.new(0, 0, 0, 38),
-			AutomaticSize = isSide and Enum.AutomaticSize.None or Enum.AutomaticSize.X,
-			LayoutOrder = tabIndex,
-			Visible = not isSettings,
-			Parent = tabHolder,
-		}, {
-			BackgroundColor3 = function(th) return activeIndex == tabIndex and th.Accent or th.Secondary end,
-		})
-		corner(btn, isSide and 7 or 19)
-		pad(btn, isSide and 10 or 14, 0)
-
-		local bl = Instance.new("UIListLayout", btn)
-		bl.FillDirection, bl.VerticalAlignment, bl.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 8)
-		mkicon(tabIcon, "Tab", btn, UDim2.new(0, 16, 0, 16))
-
-		local label = Make("TextLabel", {
-			LayoutOrder = 2,
-			AutomaticSize = Enum.AutomaticSize.X,
-			Size = isSide and UDim2.new(1, -24, 1, 0) or UDim2.new(0, 0, 1, 0),
-			Text = tabName,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Parent = btn,
-		}, {
-			TextColor3 = function(th) return activeIndex == tabIndex and th.AccentText or th.SubText end,
-		})
-
-		local page = Make("ScrollingFrame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 1, 0),
-			Visible = false,
-			AutomaticCanvasSize = Enum.AutomaticSize.Y,
-			Parent = pageHolder,
-		})
-		styleScroll(page, false)
-
-		local pl = Instance.new("UIListLayout", page)
-		pl.SortOrder, pl.Padding = Enum.SortOrder.LayoutOrder, UDim.new(0, 10)
-
-		local function activate()
-			activeIndex = tabIndex
-			if not isSettings then lastUserIndex = tabIndex end
-			for i, p in tabPages do
-				local isCur = (i == activeIndex)
-				p.Visible = isCur
-				if tabBtns[i].Visible then
-					tabBtns[i].BackgroundColor3 = isCur and Library.CurrentTheme.Accent or Library.CurrentTheme.Secondary
-					tabLabels[i].TextColor3 = isCur and Library.CurrentTheme.AccentText or Library.CurrentTheme.SubText
-				end
-			end
-		end
-
-		local function hoverTab(b, l, index)
-			conn(b.MouseEnter, function()
-				if activeIndex ~= index then
-					tw(b, Motion.Fast, { BackgroundColor3 = Library.CurrentTheme.Accent })
-					tw(l, Motion.Fast, { TextColor3 = Library.CurrentTheme.AccentText })
-				end
-			end)
-			conn(b.MouseLeave, function()
-				if activeIndex ~= index then
-					tw(b, Motion.Fast, { BackgroundColor3 = Library.CurrentTheme.Secondary })
-					tw(l, Motion.Fast, { TextColor3 = Library.CurrentTheme.SubText })
-				end
-			end)
-		end
-		btn.Activated:Connect(activate)
-		hoverTab(btn, label, tabIndex)
-
-		tabPages[tabIndex], tabBtns[tabIndex], tabLabels[tabIndex], tabActivators[tabIndex] = page, btn, label, activate
-		if isSettings then settingsIndex = tabIndex elseif not lastUserIndex then activate() end
-
-		-- Component Builders
-		local tab, order = {}, 0
-		local targetParent = page
+	-- Component Container Factory (shared by Tabs and Sections)
+	local function createContainer(targetParent, registry, tabName)
+		local container = {}
+		local order = 0
 		local function nextOrder() order += 1; return order end
 		local function configKey(kind, name) return tabName .. ">" .. kind .. ":" .. name end
 
@@ -769,7 +749,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			return l
 		end
 
-		function tab:Section(text, collapsed, builder)
+		function container:Section(text, collapsed, builder)
 			if type(collapsed) == "function" then builder, collapsed = collapsed, false end
 			collapsed = collapsed and true or false
 
@@ -780,35 +760,47 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			local holder, setChevron = newIndicator(header, false)
 			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -20, 1, 0), FontWeight = "Bold", Text = text, Parent = header }, { TextColor3 = "SubText" })
 
-			local container = Make("Frame", { BackgroundTransparency = 1, LayoutOrder = nextOrder(), AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0), Visible = not collapsed, Parent = targetParent })
-			local cl = Instance.new("UIListLayout", container)
+			local subFrame = Make("Frame", { BackgroundTransparency = 1, LayoutOrder = nextOrder(), AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0), Visible = not collapsed, Parent = targetParent })
+			local cl = Instance.new("UIListLayout", subFrame)
 			cl.SortOrder, cl.Padding = Enum.SortOrder.LayoutOrder, UDim.new(0, 10)
 
-			if builder then
-				local oldP, oldO = targetParent, order
-				targetParent, order = container, 0
-				builder(tab)
-				targetParent, order = oldP, oldO
-			end
+			local section = createContainer(subFrame, registry, tabName)
+			section.Instance = subFrame
+			section.Header = header
 
-			if #container:GetChildren() < 2 then
-				holder.Visible = false
-				header.Active = false
+			local function updateIndicator()
+				local hasChildren = #subFrame:GetChildren() > 1
+				holder.Visible = hasChildren
+				header.Active = hasChildren
 			end
+			subFrame.ChildAdded:Connect(updateIndicator)
+			subFrame.ChildRemoved:Connect(updateIndicator)
 
 			setChevron(not collapsed)
 			header.Activated:Connect(function()
 				collapsed = not collapsed
-				container.Visible = not collapsed
+				subFrame.Visible = not collapsed
 				setChevron(not collapsed)
 			end)
+
+			function section:SetCollapsed(state)
+				collapsed = state and true or false
+				subFrame.Visible = not collapsed
+				setChevron(not collapsed)
+			end
+
+			if builder then withScope(section, builder) end
+			updateIndicator()
+
+			return section
 		end
 
-		function tab:Divider()
-			Make("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 1), Parent = targetParent }, { BackgroundColor3 = "Stroke" })
+		function container:Divider()
+			local f = Make("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 1), Parent = targetParent }, { BackgroundColor3 = "Stroke" })
+			return { Instance = f }
 		end
 
-		function tab:Text(title, content, iconName)
+		function container:Text(title, content, iconName)
 			local f = Make("Frame", { LayoutOrder = nextOrder(), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = targetParent }, { BackgroundColor3 = "Secondary" })
 			corner(f, 8)
 			pad(f, 16, 14)
@@ -820,11 +812,26 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			hl.FillDirection, hl.VerticalAlignment, hl.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 8)
 
 			mkicon(iconName, "Text", head, UDim2.new(0, 18, 0, 18))
-			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -26, 1, 0), FontWeight = "Bold", Text = title, TextSize = T.Title, TextTruncate = Enum.TextTruncate.AtEnd, Parent = head }, { TextColor3 = "Text" })
-			Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = T.Body, TextWrapped = true, Text = content, Parent = f }, { TextColor3 = "SubText" })
+			local titleLbl = Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, -26, 1, 0), FontWeight = "Bold", Text = title, TextSize = T.Title, TextTruncate = Enum.TextTruncate.AtEnd, Parent = head }, { TextColor3 = "Text" })
+			local contentLbl = Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = T.Body, TextWrapped = true, Text = content, Parent = f }, { TextColor3 = "SubText" })
+
+			local handle = {
+				Instance = f,
+				Get = function() return contentLbl.Text end,
+				Set = function(self, str)
+					if str == nil and type(self) == "string" then str = self end
+					contentLbl.Text = tostring(str or "")
+				end,
+				SetTitle = function(self, str)
+					if str == nil and type(self) == "string" then str = self end
+					titleLbl.Text = tostring(str or "")
+				end,
+			}
+			return handle
 		end
 
-		function tab:Button(text, callback, iconName)
+		function container:Button(text, callback, iconName)
+			callback = callback or function() end
 			local f = card(46)
 			rowLabel(f, iconName, "Button", text, 0)
 			local clickBtn = Make("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = f })
@@ -835,9 +842,16 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				task.delay(0.12, function() tw(f, Motion.Normal, { BackgroundColor3 = Library.CurrentTheme.Secondary }) end)
 				callback()
 			end)
+
+			local handle = {
+				Instance = f,
+				Fire = function() callback() end,
+			}
+			return handle
 		end
 
-		function tab:Toggle(text, default, callback, iconName)
+		function container:Toggle(text, default, callback, iconName)
+			callback = callback or function() end
 			local f = card(46)
 			rowLabel(f, iconName, "Toggle", text, 46)
 			local sw = Make("Frame", { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, 40, 0, 22), Parent = f })
@@ -853,7 +867,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			bindTheme(sw, "BackgroundColor3", function(th) return state and th.Accent or th.Stroke end)
 
 			local function apply(newState, imm)
-				state = newState
+				state = newState and true or false
 				local pos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 				local col = state and Library.CurrentTheme.Accent or Library.CurrentTheme.Stroke
 				if imm then circ.Position, sw.BackgroundColor3 = pos, col else
@@ -865,16 +879,31 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 
 			clickBtn.Activated:Connect(function() apply(not state); requestSave(registry) end)
 			regConfig(registry, configKey("Toggle", text), state, function() return state end, function(v) if type(v) == "boolean" then apply(v, true) end end)
+
+			local handle = {
+				Instance = f,
+				Get = function() return state end,
+				Set = function(self, val)
+					if val == nil and type(self) == "boolean" then val = self end
+					apply(val)
+					requestSave(registry)
+				end,
+			}
+			return handle
 		end
 
-		function tab:Slider(text, min, max, default, step, callback, iconName)
+		function container:Slider(text, min, max, default, step, callback, iconName)
 			if type(step) == "function" then callback, step = step, 1 else step = step or 1 end
+			callback = callback or function() end
+			min = min or 0
+			max = max or 100
+			default = default or min
 			local decimals = decimalsOf(step)
 			local mult = 10 ^ decimals
 			local function round(v) return math.floor((math.floor((v - min) / step + 0.5) * step + min) * mult + 0.5) / mult end
 			local function fmt(v) return decimals > 0 and string.format("%." .. decimals .. "f", v) or tostring(v) end
 
-			default = round(default)
+			default = round(math.clamp(default, min, max))
 			local f = card(70)
 			local row = Make("Frame", { BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 10), Size = UDim2.new(1, 0, 0, 22), Parent = f })
 			local rl = Instance.new("UIListLayout", row)
@@ -887,7 +916,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			local bar = Make("Frame", { Position = UDim2.new(0, 0, 0, 46), Size = UDim2.new(1, 0, 0, 6), Parent = f }, { BackgroundColor3 = "Stroke" })
 			corner(bar, 3)
 
-			local fill = Make("Frame", { Size = UDim2.new((default - min) / (max - min), 0, 1, 0), Parent = bar }, { BackgroundColor3 = "Accent" })
+			local fill = Make("Frame", { Size = UDim2.new(math.clamp((default - min) / (max - min), 0, 1), 0, 1, 0), Parent = bar }, { BackgroundColor3 = "Accent" })
 			corner(fill, 3)
 			local knob = Make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, 12, 0, 12), BackgroundColor3 = Color3.new(1, 1, 1), Parent = fill })
 			corner(knob, 6)
@@ -912,17 +941,38 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				end
 			end)
 
+			local function applyVal(v)
+				v = round(math.clamp(v, min, max))
+				current = v
+				setVisual(v, (v - min) / (max - min))
+				callback(v)
+			end
+
 			regConfig(registry, configKey("Slider", text), default, function() return current end, function(v)
-				if type(v) == "number" then
-					v = round(math.clamp(v, min, max))
-					current = v
-					setVisual(v, (v - min) / (max - min))
-					callback(v)
-				end
+				if type(v) == "number" then applyVal(v) end
 			end)
+
+			local handle = {
+				Instance = f,
+				Get = function() return current end,
+				Set = function(self, v)
+					if v == nil and type(self) == "number" then v = self end
+					if type(v) == "number" then
+						applyVal(v)
+						requestSave(registry)
+					end
+				end,
+			}
+			return handle
 		end
 
-		function tab:Dropdown(text, options, callback, default, iconName)
+		function container:Dropdown(text, options, callback, default, iconName)
+			if type(callback) ~= "function" and callback ~= nil then
+				iconName, default, callback = default, callback, function() end
+			else
+				callback = callback or function() end
+			end
+			options = options or {}
 			local multi = type(default) == "table"
 			local selected = {}
 			if multi then for _, v in default do selected[v] = true end else default = default or options[1] end
@@ -1046,16 +1096,35 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				callback(multi and getSelectedList() or default)
 			end)
 
-			local dd = {}
-			function dd:Refresh(newOpts)
-				options = newOpts
-				build()
-				refresh()
-			end
-			return dd
+			local handle = {
+				Instance = f,
+				Get = function()
+					return multi and getSelectedList() or default
+				end,
+				Set = function(self, v)
+					if v == nil and (type(self) == "string" or type(self) == "table") and self ~= handle then v = self end
+					if multi and type(v) == "table" then
+						table.clear(selected)
+						for _, item in v do if table.find(options, item) then selected[item] = true end end
+					elseif table.find(options, v) then
+						default = v
+					end
+					refresh()
+					callback(multi and getSelectedList() or default)
+					requestSave(registry)
+				end,
+				Refresh = function(self, newOpts)
+					if newOpts == nil and type(self) == "table" and self ~= handle then newOpts = self end
+					options = newOpts or {}
+					build()
+					refresh()
+				end,
+			}
+			return handle
 		end
 
-		function tab:Keybind(text, default, callback, iconName)
+		function container:Keybind(text, default, callback, iconName)
+			callback = callback or function() end
 			local f = card(46)
 			rowLabel(f, iconName, "Keybind", text, 110)
 			local bind = Make("TextButton", {
@@ -1087,7 +1156,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 					tw(bs, Motion.Fast, { Color = Library.CurrentTheme.Stroke, Transparency = 0.5 })
 					requestSave(registry)
 				elseif not gpe and key and i.KeyCode == key then
-					callback()
+					callback(key)
 				end
 			end)
 
@@ -1097,9 +1166,31 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				key = (type(v) == "string" and v ~= "None") and (pcall(function() return Enum.KeyCode[v] end) and Enum.KeyCode[v] or nil) or nil
 				bind.Text = key and key.Name or "None"
 			end)
+
+			local handle = {
+				Instance = f,
+				Get = function() return key end,
+				Set = function(self, newKey)
+					if newKey == nil and (typeof(self) == "EnumItem" or type(self) == "string") then newKey = self end
+					if typeof(newKey) == "EnumItem" and newKey.EnumType == Enum.KeyCode then
+						key = newKey
+					elseif type(newKey) == "string" then
+						key = (newKey ~= "None" and pcall(function() return Enum.KeyCode[newKey] end) and Enum.KeyCode[newKey]) or nil
+					else
+						key = nil
+					end
+					bind.Text = key and key.Name or "None"
+					requestSave(registry)
+				end,
+			}
+			return handle
 		end
 
-		function tab:Input(text, placeholder, callback, default, iconName)
+		function container:Input(text, placeholder, callback, default, iconName)
+			if type(placeholder) == "function" then
+				callback, placeholder = placeholder, ""
+			end
+			callback = callback or function() end
 			local f = card(50)
 			rowLabel(f, iconName, "Input", text, 170)
 			local box = Make("TextBox", {
@@ -1134,9 +1225,26 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 			regConfig(registry, configKey("Input", text), default or "", function() return box.Text end, function(v)
 				if type(v) == "string" then box.Text = v; updateAlign(); callback(v) end
 			end)
+
+			local handle = {
+				Instance = f,
+				Get = function() return box.Text end,
+				Set = function(self, val)
+					if val == nil and type(self) == "string" then val = self end
+					box.Text = tostring(val or "")
+					updateAlign()
+					callback(box.Text)
+					requestSave(registry)
+				end,
+			}
+			return handle
 		end
 
-		function tab:Color(text, default, callback, iconName)
+		function container:Color(text, default, callback, iconName)
+			if type(default) == "function" then
+				callback, default = default, Color3.fromRGB(255, 255, 255)
+			end
+			callback = callback or function() end
 			local f = card(46)
 			f.ClipsDescendants = true
 
@@ -1264,17 +1372,119 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 				local res = typeof(val) == "Color3" and val or (type(val) == "table" and val.R and Color3.fromRGB(val.R, val.G or 0, val.B or 0)) or (type(val) == "string" and pcall(Color3.fromHex, val:gsub("#", "")) and Color3.fromHex(val:gsub("#", "")))
 				if res then h, s, v = res:ToHSV(); updateVisuals(false) end
 			end)
+
+			local handle = {
+				Instance = f,
+				Get = function() return col end,
+				Set = function(self, val)
+					if val == nil and (typeof(self) == "Color3" or type(self) == "table" or type(self) == "string") then val = self end
+					local res = typeof(val) == "Color3" and val or (type(val) == "table" and val.R and Color3.fromRGB(val.R, val.G or 0, val.B or 0)) or (type(val) == "string" and pcall(Color3.fromHex, val:gsub("#", "")) and Color3.fromHex(val:gsub("#", "")))
+					if res then
+						h, s, v = res:ToHSV()
+						updateVisuals(false)
+						requestSave(registry)
+					end
+				end,
+			}
+			return handle
 		end
 
+		return container
+	end
+
+	local function createTab(tabName, tabIcon, registry, tabBuilder)
+		if type(tabIcon) == "function" then tabBuilder, tabIcon = tabIcon, nil end
+		local tabIndex = #tabPages + 1
+		local isSettings = registry == KvantConfig
+
+		local btn = Make("TextButton", {
+			Size = isSide and UDim2.new(0.9, 0, 0, 36) or UDim2.new(0, 0, 0, 38),
+			AutomaticSize = isSide and Enum.AutomaticSize.None or Enum.AutomaticSize.X,
+			LayoutOrder = tabIndex,
+			Visible = not isSettings,
+			Parent = tabHolder,
+		}, {
+			BackgroundColor3 = function(th) return activeIndex == tabIndex and th.Accent or th.Secondary end,
+		})
+		corner(btn, isSide and 7 or 19)
+		pad(btn, isSide and 10 or 14, 0)
+
+		local bl = Instance.new("UIListLayout", btn)
+		bl.FillDirection, bl.VerticalAlignment, bl.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 8)
+		mkicon(tabIcon, "Tab", btn, UDim2.new(0, 16, 0, 16))
+
+		local label = Make("TextLabel", {
+			LayoutOrder = 2,
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = isSide and UDim2.new(1, -24, 1, 0) or UDim2.new(0, 0, 1, 0),
+			Text = tabName,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = btn,
+		}, {
+			TextColor3 = function(th) return activeIndex == tabIndex and th.AccentText or th.SubText end,
+		})
+
+		local page = Make("ScrollingFrame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, 0, 1, 0),
+			Visible = false,
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			Parent = pageHolder,
+		})
+		styleScroll(page, false)
+
+		local pl = Instance.new("UIListLayout", page)
+		pl.SortOrder, pl.Padding = Enum.SortOrder.LayoutOrder, UDim.new(0, 10)
+
+		local function activate()
+			activeIndex = tabIndex
+			if not isSettings then lastUserIndex = tabIndex end
+			for i, p in tabPages do
+				local isCur = (i == activeIndex)
+				p.Visible = isCur
+				if tabBtns[i].Visible then
+					tabBtns[i].BackgroundColor3 = isCur and Library.CurrentTheme.Accent or Library.CurrentTheme.Secondary
+					tabLabels[i].TextColor3 = isCur and Library.CurrentTheme.AccentText or Library.CurrentTheme.SubText
+				end
+			end
+		end
+
+		local function hoverTab(b, l, index)
+			conn(b.MouseEnter, function()
+				if activeIndex ~= index then
+					tw(b, Motion.Fast, { BackgroundColor3 = Library.CurrentTheme.Accent })
+					tw(l, Motion.Fast, { TextColor3 = Library.CurrentTheme.AccentText })
+				end
+			end)
+			conn(b.MouseLeave, function()
+				if activeIndex ~= index then
+					tw(b, Motion.Fast, { BackgroundColor3 = Library.CurrentTheme.Secondary })
+					tw(l, Motion.Fast, { TextColor3 = Library.CurrentTheme.SubText })
+				end
+			end)
+		end
+		btn.Activated:Connect(activate)
+		hoverTab(btn, label, tabIndex)
+
+		tabPages[tabIndex], tabBtns[tabIndex], tabLabels[tabIndex], tabActivators[tabIndex] = page, btn, label, activate
+		if isSettings then settingsIndex = tabIndex elseif not lastUserIndex then activate() end
+
+		local tab = createContainer(page, registry, tabName)
+		tab.Instance = page
+		tab.Button = btn
+
+		if tabBuilder then withScope(tab, tabBuilder) end
 		return tab
 	end
 
-	function window:Tab(name, icon) return createTab(name, icon, GameConfig) end
+	function window:Tab(name, icon, tabBuilder)
+		return createTab(name, icon, GameConfig, tabBuilder)
+	end
 
 	-- Settings Tab
 	local settingsTab = createTab("Settings", Icons.Settings, KvantConfig)
 	settingsTab:Section("Interface", false, function(s)
-		s:Dropdown("Theme", { "Darker", "Dark", "Vesper", "Light" }, function(v) Library:SetTheme(v) end, "Darker")
+		s:Dropdown("Theme", { "Darker", "Dark", "Vesper", "Light", "SolorizedLight" }, function(v) Library:SetTheme(v) end, "Darker")
 		s:Dropdown("Font", { "Inter", "Roboto", "Ubuntu" }, function(v) Library:SetFont(v) end, "Inter")
 		s:Slider("UI Scale", 80, 120, 100, 1, function(v) baseScale = v / 100; if not minimized then uiScale.Scale = baseScale end end)
 		s:Toggle("Show Icons", true, function(st)
@@ -1322,6 +1532,7 @@ function Library:CreateWindow(optOrName, sideTabs, customTheme, customSize, icon
 		end)
 	end
 
+	if builder then withScope(window, builder) end
 	return window
 end
 
