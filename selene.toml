@@ -5,3 +5,6 @@ exclude = ["dist/*", "tests/*"]
 # incorrect_standard_library_use = "allow"
 # undefined_variable = "allow"
 multiple_statements = "allow"
+shadowing = "allow"
+roblox_manual_fromscale_or_fromoffset = "allow"
+deprecated = "allow"
