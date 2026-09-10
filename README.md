@@ -3,7 +3,11 @@
 Minimalist UI library for Roblox. Supports both declarative (scoped) and imperative usage for fast and enjoyable scripting.
 The library supports runtime theme & font switching, configuration saving. You don't need to manually set flags for configuration entries - everything works out of the box.
 
-![Kvant UI](assets/screenshot.png)
+<br>
+<p align="center">
+  <img src="./assets/screenshot.png"/>
+</p>
+<br>
 
 ## Quickstart
 
