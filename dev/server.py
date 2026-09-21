@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-"""Local server for development & testing."""
 
-from __future__ import annotations
-
-import argparse
-from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent / "src"
+ROOT = Path(__file__).resolve().parent.parent
 
 
-class RawScriptHandler(SimpleHTTPRequestHandler):
+class Handler(SimpleHTTPRequestHandler):
     def guess_type(self, path: str) -> str:
         return "text/plain; charset=utf-8"
 
@@ -22,24 +17,22 @@ class RawScriptHandler(SimpleHTTPRequestHandler):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
-    args = parser.parse_args()
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", 6969),
+        lambda *args, **kwargs: Handler(
+            *args,
+            directory=str(ROOT),
+            **kwargs,
+        ),
+    )
 
-    ROOT.mkdir(exist_ok=True)
-
-    handler = partial(RawScriptHandler, directory=str(ROOT))
-    server = ThreadingHTTPServer((args.host, args.port), handler)
-
-    print(f"Serving: {ROOT}")
-    print(f"URL: http://{args.host}:{args.port}/")
-    print("Press Ctrl+C to stop.")
+    print(f"Serving: {ROOT}", flush=True)
+    print("http://127.0.0.1:6969/", flush=True)
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping...")
+        pass
     finally:
         server.server_close()
 
