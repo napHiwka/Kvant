@@ -11,11 +11,8 @@
 --　⠀じじと ）
 
 --TODO:
---feat: Add custom assets (getcustomassets) to bypass detection, if supported.
---feat?: Move the window along with the pill while it's minimized?
 --feat?: Custom frame/content support for things like timers, in-game labels, etc...
 --feat?: Custom elements (that's probably nightmare to implement).
---feat?: save pill position.
 --feat: add more icons for suggestions stabs.
 --docs: deploy docs.
 
@@ -853,6 +850,10 @@ local ConfigOps = {
     Textarea = {
         get = function(s) return s.box.Text end,
         set = function(s, v) if type(v) == "string" then textareaSetValue(s, v, false) end end,
+    },
+    Pos = {
+        get = function(f) return { f.Position.X.Scale, f.Position.X.Offset, f.Position.Y.Scale, f.Position.Y.Offset } end,
+        set = function(f, v) if type(v) == "table" and #v == 4 then f.Position = UDim2.new(v[1], v[2], v[3], v[4]) end end,
     },
 }
 
@@ -1746,7 +1747,15 @@ function Library:CreateWindow(opt)
         end
     end)
 
-    local function makeDraggable(frame, handle)
+    -- TODO: Adjust it better or fix logic
+    local function clampFrame(f, def)
+        task.defer(function()
+            local vp, p, sz = workspace.CurrentCamera.ViewportSize, f.AbsolutePosition, f.AbsoluteSize
+            if p.Y < -270 or (p.Y + sz.Y) > vp.Y + 270 or (p.X + sz.X) < 25 or p.X > vp.X - 25 then f.Position = def end
+        end)
+    end
+
+    local function makeDraggable(frame, handle, key, defPos)
         (handle or frame).InputBegan:Connect(function(i)
             if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
                 local sx, sy, ox, oy = i.Position.X, i.Position.Y, frame.Position.X.Offset, frame.Position.Y.Offset
@@ -1754,13 +1763,18 @@ function Library:CreateWindow(opt)
                 win.ClaimMove(frame, function(pos)
                     if math.abs(pos.X - sx) > 3 or math.abs(pos.Y - sy) > 3 then dragMoved = true end
                     frame.Position = UDim2.new(frame.Position.X.Scale, ox + (pos.X - sx), frame.Position.Y.Scale, oy + (pos.Y - sy))
+                end, function()
+                    if dragMoved then
+                        clampFrame(frame, defPos)
+                        if key then win.RequestSave(win.KvantConfig, key) end
+                    end
                 end)
             end
         end)
     end
 
     local gui = win.Make("ScreenGui", { ResetOnSpawn = false, Parent = gethui and gethui() or cloneref(game:FindFirstChild("CoreGui")) or cloneref(game:GetService("Players")).LocalPlayer:WaitForChild("PlayerGui") })
-    local main = win.Stroke(corner(win.Make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = opt.Size or (isSide and WIN_SIZE_SIDE or WIN_SIZE_TOP), Active = true, ClipsDescendants = true, Parent = gui }, { BackgroundColor3 = "Background" }), 10), "Stroke")
+    local main = win.Stroke(corner(win.Make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = opt.Size or (isSide and WIN_SIZE_SIDE or WIN_SIZE_TOP), Active = true, ClipsDescendants = false, Parent = gui }, { BackgroundColor3 = "Background" }), 10), "Stroke")
     local defaultPosition = main.Position
 
     local modalBtn = win.Make("TextButton", { Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = "", Modal = win.unlockCursor and not win.minimized, Parent = main })
@@ -1803,7 +1817,26 @@ function Library:CreateWindow(opt)
     local closeBtn = win.Make("ImageButton", { Size = UDim2.new(0, 22, 0, 22), Image = ASSET.Close, Visible = closeBtnDefault, LayoutOrder = 3, Parent = controls }, { ImageColor3 = "Icon" })
 
     for _, b in { searchBtn, settingsBtn, minBtn, closeBtn } do if b then win.HoverIcon(b) end end
-    makeDraggable(main, topbar)
+    local defaultPillPos = UDim2.new(0.5, 0, 0.04, 0)
+    win.RegConfig(win.KvantConfig, "_MainPos", { 0.5, 0, 0.5, 0 }, main, "Pos")
+    win.RegConfig(win.KvantConfig, "_PillPos", { 0.5, 0, 0.04, 0 }, pill, "Pos")
+    makeDraggable(main, topbar, "_MainPos", defaultPosition)
+    local grip = corner(win.Make("TextButton", { Size = UDim2.new(0, 44, 0, 5), Parent = main, }, { BackgroundColor3 = "Stroke" }), 3)
+    win.OnHover(grip,
+        function() win.Tween(grip, Motion.Fast, { BackgroundColor3 = Library._theme.Accent }) end,
+        function() win.Tween(grip, Motion.Fast, { BackgroundColor3 = Library._theme.Stroke }) end
+    )
+
+    local function updateGrip()
+        local vp = workspace.CurrentCamera.ViewportSize
+        local isHigh = main.AbsolutePosition.Y < (vp.Y * 0.4)
+        grip.AnchorPoint = Vector2.new(0.5, isHigh and 0 or 1)
+        grip.Position = UDim2.new(0.5, 0, isHigh and 1 or 0, isHigh and 6 or -6)
+    end
+
+    main:GetPropertyChangedSignal("Position"):Connect(updateGrip)
+    makeDraggable(main, grip, "_MainPos", defaultPosition)
+    updateGrip()
 
     local pill = corner(win.Make("TextButton", { Visible = false, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.04, 0), Size = UDim2.new(0, 0, 0, 36), AutomaticSize = Enum.AutomaticSize.X, Parent = gui }, { BackgroundColor3 = "Secondary" }), 18)
     pad(pill, 16, 0)
@@ -1813,7 +1846,7 @@ function Library:CreateWindow(opt)
     local labelConstraint = Instance.new("UISizeConstraint", pillLabel); labelConstraint.MaxSize = Vector2.new(248, math.huge)
     win.Stroke(pill, "Stroke", 0.6, pill, 0.2)
     win.OnHover(pill, function() win.Tween(pillLabel, Motion.Fast, { TextColor3 = Library._theme.Accent }) end, function() win.Tween(pillLabel, Motion.Fast, { TextColor3 = Library._theme.Text }) end)
-    makeDraggable(pill)
+    makeDraggable(pill, nil, "_PillPos", defaultPillPos)
 
     local tabHolder, pageHolder
     if isSide then
@@ -2252,6 +2285,7 @@ function Library:CreateWindow(opt)
     end)
 
     if kvantData then applyConfig(win.KvantConfig, kvantData) end
+    clampFrame(main, defaultPosition); clampFrame(pill, defaultPillPos)
     local function loadGameConfig()
         if supported and win.autoload then
             ensureFolders()
