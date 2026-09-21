@@ -1,9 +1,10 @@
 --!native
 --!optimize 2
 
--- KvantUI - v0.9.0
+-- KvantUI - v0.9.1
 -- github.com/napHiwka/Kvant - MIT License
 -- You'll probably want to turn world wrap on or format code, good luck
+-- API breakege can still happen - use right version; sob
 --　　／l、
 --　（ﾟ､ ｡ ７
 --　⠀l、~ ヽﾉｼ
@@ -11,12 +12,12 @@
 
 --TODO:
 --feat: Add custom assets (getcustomassets) to bypass detection, if supported.
---feat?: Cache the library and update it in the background from GitHub when needed. This should improve loading speed. Can be disabled in settings. But can be really inconsistent with big lib updates (or lib forks) that break API and all script loading.
 --feat?: Move the window along with the pill while it's minimized?
 --feat?: Custom frame/content support for things like timers, in-game labels, etc...
 --feat?: Custom elements (that's probably nightmare to implement).
---feat: probably should add to RegisterGlobals getgenv func, _G.
 --feat?: save pill position.
+--feat: add more icons for suggestions stabs.
+--docs: deploy docs.
 
 -----------------------------------------------------------
 -- Services, assets & helpers
@@ -1462,8 +1463,11 @@ end
 function Library:CreateWindow(opt)
     opt = opt or {}
     local builder = opt.Builder
-    if opt.RegisterAtCaller == true then pcall(function() if type(getfenv) == "function" then registerDeclaratives(getfenv(2)) end end) end
-    if opt.RegisterGlobalEnv == true then if type(getgenv) == "function" then pcall(registerDeclaratives, getgenv()) end
+    if opt.Globals then
+        local ok, callerEnv = pcall(getfenv, 2)
+        if ok and type(callerEnv) == "table" then registerDeclaratives(callerEnv) end
+        if type(getgenv) == "function" then pcall(registerDeclaratives, getgenv()) end
+    end
 
     local kvantData = nil
     if supported and isfile(PERSIST.Kvant) then
@@ -2256,7 +2260,6 @@ function Library:CreateWindow(opt)
     end
 
     if builder then withScope(window, builder); loadGameConfig() else task.defer(loadGameConfig) end
-
     return window
 end
 
