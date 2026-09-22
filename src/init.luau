@@ -1,7 +1,7 @@
 --!native
 --!optimize 2
 
--- KvantUI - v0.9.1
+-- KvantUI - v0.9.2
 -- github.com/napHiwka/Kvant - MIT License
 -- You'll probably want to turn world wrap on or format code, good luck
 -- API breakege can still happen - use right version; sob
@@ -105,14 +105,14 @@ local DEFAULT_THEMES = {
 }
 
 local TAB_ICON_GUESS = {
-    main = "Kvant", home = "Kvant", general = "Kvant", overview = "Kvant", dashboard = "Kvant", hub = "Kvant", menu = "Kvant", start = "Kvant", game = "Kvant", player = "Kvant", localplayer = "Kvant", character = "Kvant", self = "Kvant", farm = "Kvant", autofarm = "Kvant",
-    settings = "Settings", config = "Settings", configuration = "Settings", options = "Settings", preferences = "Settings", setup = "Settings", sys = "Settings", system = "Settings", manage = "Settings",
-    search = "Search", find = "Search", lookup = "Search", scanner = "Search", filter = "Search", explore = "Search",
+    main = "Kvant", home = "Kvant", general = "Kvant", overview = "Kvant", hub = "Kvant", game = "Kvant", player = "Kvant", character = "Kvant", farm = "Kvant", autofarm = "Kvant",
+    settings = "Settings", config = "Settings", configuration = "Settings", options = "Settings", preferences = "Settings", setup = "Settings",
+    search = "Search", find = "Search", scanner = "Search", filter = "Search", explore = "Search",
     color = "Color", colors = "Color", colour = "Color", colours = "Color", theme = "Color", themes = "Color", style = "Color", visuals = "Color", visual = "Color", esp = "Color", chams = "Color", cham = "Color", render = "Color",
-    text = "Text", info = "Text", about = "Text", credits = "Text", notes = "Text", log = "Text", logs = "Text", changelog = "Text", status = "Text", stats = "Text", doc = "Text", docs = "Text",
+    text = "Text", info = "Text", about = "Text", credits = "Text", notes = "Text", log = "Text", logs = "Text", changelog = "Text", status = "Text", stats = "Text",
     keybind = "Keybind", keybinds = "Keybind", binds = "Keybind", hotkeys = "Keybind", controls = "Keybind", keys = "Keybind", shortcuts = "Keybind",
-    toggle = "Toggle", toggles = "Toggle", features = "Toggle", modules = "Toggle", combat = "Toggle", aimbot = "Toggle", silent = "Toggle", pvp = "Toggle", hacks = "Toggle", cheats = "Toggle",
-    slider = "Slider", sliders = "Slider", tuning = "Slider", tweaks = "Slider", speed = "Slider", walkspeed = "Slider", jumppower = "Slider", movement = "Slider", teleports = "Slider", teleport = "Slider", tp = "Slider",
+    toggle = "Toggle", toggles = "Toggle", features = "Toggle", modules = "Toggle", combat = "Toggle", aimbot = "Toggle", silent = "Toggle", pvp = "Toggle",
+    slider = "Slider", sliders = "Slider", tuning = "Slider", tweaks = "Slider", speed = "Slider", walkspeed = "Slider", movement = "Slider", teleports = "Slider", teleport = "Slider", tp = "Slider",
     dropdown = "Dropdown", list = "Dropdown", lists = "Dropdown", select = "Dropdown", selection = "Dropdown", modes = "Dropdown", mode = "Dropdown", target = "Dropdown", targets = "Dropdown",
     input = "Input", inputs = "Input", fields = "Input", command = "Input", commands = "Input", chat = "Input", textbox = "Input",
     button = "Button", buttons = "Button", actions = "Button", misc = "Button", extra = "Button", extras = "Button", utilities = "Button", utils = "Button", tools = "Button", spawn = "Button",
@@ -1747,33 +1747,30 @@ function Library:CreateWindow(opt)
         end
     end)
 
-    -- TODO: Adjust it better or fix logic
-    local function clampFrame(f, def)
-        task.defer(function()
-            local vp, p, sz = workspace.CurrentCamera.ViewportSize, f.AbsolutePosition, f.AbsoluteSize
-            if p.Y < -270 or (p.Y + sz.Y) > vp.Y + 270 or (p.X + sz.X) < 25 or p.X > vp.X - 25 then f.Position = def end
-        end)
-    end
+    local gui = win.Make("ScreenGui", { ResetOnSpawn = false, Parent = gethui and gethui() or cloneref(game:FindFirstChild("CoreGui")) or cloneref(game:GetService("Players")).LocalPlayer:WaitForChild("PlayerGui") })
 
-    local function makeDraggable(frame, handle, key, defPos)
+    local function makeDraggable(frame, handle, key)
         (handle or frame).InputBegan:Connect(function(i)
             if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-                local sx, sy, ox, oy = i.Position.X, i.Position.Y, frame.Position.X.Offset, frame.Position.Y.Offset
+                local sx, sy = i.Position.X, i.Position.Y
+                local ox, oy = frame.Position.X.Offset, frame.Position.Y.Offset
+                local sp = frame.AbsolutePosition
                 dragMoved = false
                 win.ClaimMove(frame, function(pos)
-                    if math.abs(pos.X - sx) > 3 or math.abs(pos.Y - sy) > 3 then dragMoved = true end
-                    frame.Position = UDim2.new(frame.Position.X.Scale, ox + (pos.X - sx), frame.Position.Y.Scale, oy + (pos.Y - sy))
+                    local dx, dy = pos.X - sx, pos.Y - sy
+                    if math.abs(dx) > 3 or math.abs(dy) > 3 then dragMoved = true end
+                    local screen, sz = gui.AbsoluteSize, frame.AbsoluteSize
+                    local pad = 12 -- keeps grip + topbar edge locked at screen boundary
+                    local tx = math.clamp(sp.X + dx, pad - sz.X, screen.X - pad)
+                    local ty = math.clamp(sp.Y + dy, pad - sz.Y, screen.Y - pad)
+                    frame.Position = UDim2.new(frame.Position.X.Scale, ox + (tx - sp.X), frame.Position.Y.Scale, oy + (ty - sp.Y))
                 end, function()
-                    if dragMoved then
-                        clampFrame(frame, defPos)
-                        if key then win.RequestSave(win.KvantConfig, key) end
-                    end
+                    if dragMoved and key then win.RequestSave(win.KvantConfig, key) end
                 end)
             end
         end)
     end
 
-    local gui = win.Make("ScreenGui", { ResetOnSpawn = false, Parent = gethui and gethui() or cloneref(game:FindFirstChild("CoreGui")) or cloneref(game:GetService("Players")).LocalPlayer:WaitForChild("PlayerGui") })
     local main = win.Stroke(corner(win.Make("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = opt.Size or (isSide and WIN_SIZE_SIDE or WIN_SIZE_TOP), Active = true, ClipsDescendants = false, Parent = gui }, { BackgroundColor3 = "Background" }), 10), "Stroke")
     local defaultPosition = main.Position
 
@@ -1818,24 +1815,23 @@ function Library:CreateWindow(opt)
 
     for _, b in { searchBtn, settingsBtn, minBtn, closeBtn } do if b then win.HoverIcon(b) end end
     local defaultPillPos = UDim2.new(0.5, 0, 0.04, 0)
-    win.RegConfig(win.KvantConfig, "_MainPos", { 0.5, 0, 0.5, 0 }, main, "Pos")
-    win.RegConfig(win.KvantConfig, "_PillPos", { 0.5, 0, 0.04, 0 }, pill, "Pos")
-    makeDraggable(main, topbar, "_MainPos", defaultPosition)
-    local grip = corner(win.Make("TextButton", { Size = UDim2.new(0, 44, 0, 5), Parent = main, }, { BackgroundColor3 = "Stroke" }), 3)
+
+    makeDraggable(main, topbar, "_MainPos")
+    local grip = corner(win.Make("TextButton", { Size = UDim2.new(0, 52, 0, 6), Parent = main, }, { BackgroundColor3 = "Stroke" }), 3)
+
     win.OnHover(grip,
         function() win.Tween(grip, Motion.Fast, { BackgroundColor3 = Library._theme.Accent }) end,
         function() win.Tween(grip, Motion.Fast, { BackgroundColor3 = Library._theme.Stroke }) end
     )
-
     local function updateGrip()
-        local vp = workspace.CurrentCamera.ViewportSize
-        local isHigh = main.AbsolutePosition.Y < (vp.Y * 0.4)
+        local screen = gui.AbsoluteSize
+        local isHigh = main.AbsolutePosition.Y < (screen.Y * 0.5)
         grip.AnchorPoint = Vector2.new(0.5, isHigh and 0 or 1)
         grip.Position = UDim2.new(0.5, 0, isHigh and 1 or 0, isHigh and 6 or -6)
     end
 
     main:GetPropertyChangedSignal("Position"):Connect(updateGrip)
-    makeDraggable(main, grip, "_MainPos", defaultPosition)
+    makeDraggable(main, grip, "_MainPos")
     updateGrip()
 
     local pill = corner(win.Make("TextButton", { Visible = false, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.04, 0), Size = UDim2.new(0, 0, 0, 36), AutomaticSize = Enum.AutomaticSize.X, Parent = gui }, { BackgroundColor3 = "Secondary" }), 18)
@@ -1846,7 +1842,11 @@ function Library:CreateWindow(opt)
     local labelConstraint = Instance.new("UISizeConstraint", pillLabel); labelConstraint.MaxSize = Vector2.new(248, math.huge)
     win.Stroke(pill, "Stroke", 0.6, pill, 0.2)
     win.OnHover(pill, function() win.Tween(pillLabel, Motion.Fast, { TextColor3 = Library._theme.Accent }) end, function() win.Tween(pillLabel, Motion.Fast, { TextColor3 = Library._theme.Text }) end)
-    makeDraggable(pill, nil, "_PillPos", defaultPillPos)
+    makeDraggable(pill, nil, "_PillPos")
+
+    -- Position saving
+    win.RegConfig(win.KvantConfig, "_MainPos", { 0.5, 0, 0.5, 0 }, main, "Pos")
+    win.RegConfig(win.KvantConfig, "_PillPos", { 0.5, 0, 0.04, 0 }, pill, "Pos")
 
     local tabHolder, pageHolder
     if isSide then
@@ -2111,7 +2111,6 @@ function Library:CreateWindow(opt)
             content.Visible = not collapsed
             win.Tween(chevron, Motion.Fast, { Rotation = collapsed and -90 or 0 })
         end)
-
         makeDraggable(root, header)
 
         local rows = {}
@@ -2285,6 +2284,16 @@ function Library:CreateWindow(opt)
     end)
 
     if kvantData then applyConfig(win.KvantConfig, kvantData) end
+
+    local function clampFrame(f, def)
+        task.defer(function()
+            local s, p, sz = gui.AbsoluteSize, f.AbsolutePosition, f.AbsoluteSize
+            if (p.Y + sz.Y) < 36 or p.Y > s.Y - 36 or (p.X + sz.X) < 36 or p.X > s.X - 36 then
+                f.Position = def
+            end
+        end)
+    end
+
     clampFrame(main, defaultPosition); clampFrame(pill, defaultPillPos)
     local function loadGameConfig()
         if supported and win.autoload then
