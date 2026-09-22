@@ -1,251 +1,168 @@
 # Kvant
 
-Minimalist UI library for Roblox. Supports both declarative (scoped) and imperative usage for fast and enjoyable scripting.
-The library supports runtime theme & font switching, configuration saving. You don't need to manually set flags for configuration entries - everything works out of the box.
+Reactive UI library for Roblox. Windows, tabs, and a lot of elements with property-based handles and optional persistence.
 
-<br>
-<p align="center">
-  <img src="./assets/screenshot.png"/>
-</p>
-<br>
+```lua
+local Kvant = loadstring(game:HttpGet("https://raw.githubusercontent.com/napHiwka/Kvant/refs/heads/main/src/init.luau"))()
+```
 
-## Quickstart
-
-### Declarative Usage
-
-Controls automatically attach to the currently open container scope.
+## Small example
 
 ```lua
 local Kvant = loadstring(game:HttpGet("https://raw.githubusercontent.com/napHiwka/Kvant/refs/heads/main/src/init.luau"))()
 
-local autoCollect
-local speedSlider
-
-local Window = Kvant:CreateWindow({ Name = "Project", Theme = "Darker" })
-
-Window:Tab("Main", function()
-    Section("Automation", function()
-        autoCollect = Toggle("Auto Collect", false, function(state)
-            print("Auto Collect:", state)
-        end)
-        speedSlider = Slider("Speed", 16, 100, 16)
+local speed = 0
+local window = Kvant:CreateWindow({ Name = "Meow" })
+window:Tab("Main", function(tab)
+    local toggle = tab:Toggle("Toggle", false, function(on)
+        -- callback fires on every change
     end)
-    Section("Player", function()
-        -- Don't necessarily need to assign variables to handlers if you aren't going to use them.
-        Dropdown("Target", { "Head", "Torso" }, "Head")
+
+    tab:Slider("Speed", 0, 500, 16, 1, function(v)
+        speed = v
     end)
+
+    toggle.Value = true -- read/write the handle
 end)
-
--- Manipulate controls via returned handles
-autoCollect:Set(true)
-print("Auto Collect state:", autoCollect:Get())
-speedSlider:Set(32)
-```
-
-### Imperative Usage
-
-Containers return objects that expose creation methods and control handles.
-
-```lua
-local Kvant = loadstring(game:HttpGet("https://raw.githubusercontent.com/napHiwka/Kvant/refs/heads/main/src/init.luau"))()
-
-local Window = Kvant:CreateWindow("Project")
-local MainTab = Window:Tab("Main")
-local Automation = MainTab:Section("Automation")
-
-local autoCollect = Automation:Toggle("Auto Collect", false)
-autoCollect:Set(true)
-print(autoCollect:Get())
 ```
 
 ---
 
-## API Reference
-
-### Library
-
-#### `Kvant:CreateWindow(options)`
-
-Creates the main window interface.
-
-- **Parameters:**
-  - `options: WindowOptions | string`
-    - `Name: string?` (default: `"Kvant"`)
-    - `SideTabs: boolean?` (default: `false` - top tabs)
-    - `Theme: string | Theme?` (default: `"Darker"`)
-    - `Size: UDim2?`
-    - `MinSize: Vector2?`
-    - `MaxSize: Vector2?`
-    - `Icon: string?`
-    - `Builder: ((window: Window) -> ())?`
-- **Returns:** `Window`
-
-#### `Kvant:SetTheme(theme)`
-
-Applies a theme globally at runtime.
-
-- **Parameters:**
-  - `theme: string | Theme` (Built-in: `"Darker"`, `"Dark"`, `"Vesper"`, `"Light"`, `"SolorizedLight"`)
-
-#### `Kvant:SetFont(font)`
-
-Applies a font family globally at runtime.
-
-- **Parameters:**
-  - `font: string | Font` (Presets: `"Inter"`, `"Roboto"`, `"Ubuntu"`, or asset ID)
-
----
-
-### Window
-
-#### `Window:Tab(name, iconId?, builder?)`
-
-Creates a tab. If `builder` is provided, sets tab context during execution.
-
-- **Returns:** `Tab`
-
-#### `Window:Notify(text, duration?)`
-
-Displays a notification tile.
-
-- **Parameters:**
-  - `text: string`
-  - `duration: number?` (default: `3`)
-
-#### `Window:Destroy()`
-
-Unbinds all connections and removes the GUI from the hierarchy.
-
----
-
-### Containers (Tabs & Sections)
-
-Methods can be called on `tab`, `section`, or as free declarative functions (`Toggle(...)`, `Slider(...)`) inside container builder scopes.
-
-#### `Container:Section(text, collapsed?, builder?)`
-
-Creates a collapsible category container. If empty, the header chevron remains hidden until children are added.
-
-- **Parameters:**
-  - `text: string`
-  - `collapsed: boolean?` (default: `false`)
-  - `builder: ((section: Section) -> ())?`
-- **Returns:** `Section`
-- **Handle Methods:**
-  - `section:SetCollapsed(state: boolean)`
-
-#### `Container:Toggle(text, default?, callback?, iconName?)`
-
-- **Parameters:**
-  - `text: string`
-  - `default: boolean?` (default: `false`)
-  - `callback: ((state: boolean) -> ())?`
-- **Returns:** `ToggleHandle`
-- **Handle Methods:**
-  - `handle:Get() -> boolean`
-  - `handle:Set(value: boolean)`
-
-#### `Container:Slider(text, min?, max?, default?, step?, callback?, iconName?)`
-
-- **Parameters:**
-  - `text: string`
-  - `min: number?` (default: `0`)
-  - `max: number?` (default: `100`)
-  - `default: number?` (default: `min`)
-  - `step: number?` (default: `1`)
-  - `callback: ((value: number) -> ())?`
-- **Returns:** `SliderHandle`
-- **Handle Methods:**
-  - `handle:Get() -> number`
-  - `handle:Set(value: number)`
-
-#### `Container:Dropdown(text, options?, callback?, default?, iconName?)`
-
-Supports single selection (`default = "Opt"`) and multi-selection (`default = {"Opt1", "Opt2"}`).
-
-- **Parameters:**
-  - `text: string`
-  - `options: { string }?`
-  - `callback: ((selected: string | { string }) -> ())?`
-  - `default: string | { string }?`
-- **Returns:** `DropdownHandle`
-- **Handle Methods:**
-  - `handle:Get() -> string | { string }`
-  - `handle:Set(value: string | { string })`
-  - `handle:Refresh(newOptions: { string })`
-
-#### `Container:Keybind(text, default?, callback?, iconName?)`
-
-- **Parameters:**
-  - `text: string`
-  - `default: Enum.KeyCode?`
-  - `callback: ((key: Enum.KeyCode?) -> ())?`
-- **Returns:** `KeybindHandle`
-- **Handle Methods:**
-  - `handle:Get() -> Enum.KeyCode?`
-  - `handle:Set(key: Enum.KeyCode | string | nil)`
-
-#### `Container:Input(text, placeholder?, callback?, default?, iconName?)`
-
-- **Parameters:**
-  - `text: string`
-  - `placeholder: string?`
-  - `callback: ((text: string) -> ())?`
-  - `default: string?`
-- **Returns:** `InputHandle`
-- **Handle Methods:**
-  - `handle:Get() -> string`
-  - `handle:Set(text: string)`
-
-#### `Container:Color(text, default?, callback?, iconName?)`
-
-- **Parameters:**
-  - `text: string`
-  - `default: Color3?`
-  - `callback: ((color: Color3) -> ())?`
-- **Returns:** `ColorHandle`
-- **Handle Methods:**
-  - `handle:Get() -> Color3`
-  - `handle:Set(color: Color3 | string | { R: number, G: number, B: number })`
-
-#### `Container:Button(text, callback?, iconName?)`
-
-- **Parameters:**
-  - `text: string`
-  - `callback: (() -> ())?`
-- **Returns:** `ButtonHandle`
-- **Handle Methods:**
-  - `handle:Fire()`
-
-#### `Container:Text(title, content, iconName?)`
-
-Displays informational text.
-
-- **Returns:** `TextHandle`
-- **Handle Methods:**
-  - `handle:Get() -> string`
-  - `handle:Set(content: string)`
-  - `handle:SetTitle(title: string)`
-
-#### `Container:Divider()`
-
-Displays a horizontal line separator.
-
-- **Returns:** `{ Instance: Frame }`
-
----
-
-## Custom Themes
+## Window options
 
 ```lua
-Kvant:SetTheme({
-    Background = Color3.fromRGB(15, 15, 15),
-    Secondary  = Color3.fromRGB(25, 25, 25),
-    Accent     = Color3.fromRGB(0, 170, 255),
-    Stroke     = Color3.fromRGB(45, 45, 45),
-    Text       = Color3.fromRGB(240, 240, 240),
-    SubText    = Color3.fromRGB(140, 140, 140),
-    -- Optional fields (calculated automatically if omitted):
-    -- AccentText, Icon, IconMuted
+Kvant:CreateWindow({
+    Name = "Meow",-- title bar text
+    SideTabs = false, -- left-sided tab list
+    Theme = "Darker",-- built-in name or custom table
+    Font = "Roboto", -- "Roboto" | "Ubuntu" | "Inter"
+    Icon = "kvant", -- icon name, asset id, or rbxassetid://
+    ShowSearch = true, -- show search button
+    AutoTabIcons = false, -- auto-guess icons from tab names
+    PillCircle = false, -- round minimized pill (only icon)
+    Globals = false, -- register constructors as globals
+    -- Size, MinSize, MaxSize: UDim2 / Vector2
 })
 ```
+
+---
+
+## Controls
+
+All constructors are methods on a `tab` or `section` container. Each returns a handle.
+
+| Constructor | Signature (positional) | Handle type |
+|---|---|---|
+| `Toggle` | `label, default, callback?, icon?, tooltip?, opts?` | `ToggleHandle` |
+| `Slider` | `label, min, max, default, step, callback?, icon?, tooltip?, opts?` | `SliderHandle` |
+| `Button` | `label, callback?, icon?, tooltip?, opts?` | `ButtonHandle` |
+| `Dropdown` | `label, options, default, callback?, icon?, tooltip?, opts?` | `DropdownHandle` |
+| `Keybind` | `label, default, callback?, icon?, tooltip?, opts?` | `KeybindHandle` |
+| `Input` | `label, placeholder?, default?, callback?, icon?, tooltip?, opts?` | `InputHandle` |
+| `Color` | `label, default?, callback?, icon?, tooltip?, opts?` | `ColorHandle` |
+| `Textarea` | `label?, placeholder?, default?, callback?, icon?, tooltip?, opts?` | `TextareaHandle` |
+| `Text` | `title?, content, icon?, tooltip?` | `TextHandle` |
+| `Divider` | — | — |
+| `Section` | `title, collapsed?, builder?` | `Section` (container) |
+
+### Shared handle properties (all elements)
+
+| Property | Type | R/W | Description |
+|---|---|---|---|
+| `.Label` | string | R/W | Row label text |
+| `.Icon` | string? | R/W | Row icon |
+| `.Tooltip` | string? | R/W | Hover tooltip |
+| `.Locked` | boolean | R/W | Dims and blocks interaction |
+| `.Instance` | Frame | R | Root Roblox instance |
+
+### Element-specific properties
+
+**Toggle** — `.Value: boolean`, `.Changed: Signal<boolean, fromUser: boolean>`
+
+**Slider** — `.Value: number`, `.Min`, `.Max`, `.Step`, `.Suffix: string`, `.Dragging: boolean`, `.Changed: Signal<number, isDragging: boolean>`
+
+**Button** — `.Activated: Signal<>`, `:Fire()` (trigger programmatically)
+
+**Dropdown** — `.Value`, `.Options: {string}`, `.Open: boolean`, `.Multi: boolean`, `.Searchable: boolean`, `.Changed: Signal<value, fromUser>`
+
+**Keybind** — `.Value: Enum.KeyCode?`, `.Listening: boolean`, `.Pressed: Signal<KeyCode>`, `.Changed: Signal<KeyCode?, fromUser>`
+
+**Input** — `.Value: string`, `.Placeholder: string`, `.MaxLength: number`, `.DigitsOnly: boolean`, `.Changed: Signal<string, fromUser>`
+
+**Color** — `.Value: Color3`, `.Hex: string`, `.Changed: Signal<Color3, fromUser>`
+
+**Textarea** — `.Value: string`, `.Placeholder: string`, `.MaxLength: number`, `.Changed: Signal<string, fromUser>`
+
+**Text** — `.Value: string` (body), `.Title: string?` (header, set `""` to hide)
+
+**Section** — `.Open: boolean` (R/W, animates open/closed), `.Instance: Frame`, `.Header: TextButton`
+
+---
+
+## Element options (`opts` table)
+
+| Field | Elements | Type | Default | Effect |
+|---|---|---|---|---|
+| `Id` | all | string | — | Stable persistence key (overrides label-based key) |
+| `Locked` | all | boolean | false | Start in locked state |
+| `Suffix` | Slider | string | `""` | Unit label after value |
+| `Multi` | Dropdown | boolean | false | Allow multiple selections |
+| `Searchable` | Dropdown | boolean | false | Add filter input |
+| `MaxLength` | Input, Textarea | number | 0 (off) | Max character count |
+| `DigitsOnly` | Input | boolean | false | Strip non-digit characters |
+
+---
+
+## Theming
+
+```lua
+Kvant:SetTheme("Dark") -- built-in: "Dark" | "Darker" | "Vesper" | "Light" | "SolarizedLight"
+Kvant:SetTheme({ -- custom table
+    Background = Color3.fromRGB(24, 24, 27),
+    Secondary  = Color3.fromRGB(34, 34, 39),
+    Accent     = Color3.fromRGB(34, 197, 94),
+    Stroke     = Color3.fromRGB(50, 50, 58),
+    Text       = Color3.fromRGB(245, 245, 247),
+    SubText    = Color3.fromRGB(160, 160, 170),
+    -- AccentText, Icon, IconMuted: auto-derived if omitted
+})
+Kvant:SetFont("Inter") -- "Roboto" | "Ubuntu" | "Inter" | Font object | asset id
+```
+
+Read: `Kvant:GetTheme()`, `Kvant:GetThemeNames()`, `Kvant:GetThemePreset(name)`.
+Do not mutate `_theme` directly — changes won't propagate to open windows.
+
+---
+
+## Window API
+
+```lua
+window:Tab(title, icon?, builder?)  -- create a tab
+window:Notify(text, duration?, icon?) -- toast notification
+window:Status(opts?) -- floating key-value status widget frame
+window:Destroy() -- destroy the window
+```
+
+### Status widget
+
+```lua
+local s = window:Status({ Title = "Stats", Position = UDim2.new(0, 20, 0.5, 0) })
+s:Set("FPS", 60)
+s:Get("FPS") -- "60"
+s:Remove("FPS")
+s:Clear()
+s:Destroy()
+```
+
+---
+
+## Icons
+
+`Kvant.Icons` maps lowercase names to asset IDs. Pass any of:
+- A name from `Kvant.Icons` (`"toggle"`, `"settings"`, `"color"`, …)
+- A numeric asset ID string (`"107150227368485"`)
+- A full URI (`"rbxassetid://107150227368485"`)
+
+`AutoTabIcons = true` guesses an icon from the tab name automatically.
+
+# License - MIT
