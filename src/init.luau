@@ -1,7 +1,7 @@
 --!native
 --!optimize 2
 
--- KvantUI - v0.9.4-pre
+-- KvantUI - v0.9.4
 -- github.com/napHiwka/Kvant - MIT License
 -- You'll probably want to turn world wrap on or format code, good luck
 -- API breakege can still happen - use right version; sob
