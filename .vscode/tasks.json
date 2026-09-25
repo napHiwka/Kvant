@@ -39,6 +39,20 @@
         "kind": "build",
         "isDefault": true
       }
+    },
+    {
+      "label": "Build",
+      "type": "shell",
+      "command": "lua",
+      "args": [
+        "${workspaceFolder}/build/init.lua"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     }
   ]
 }
