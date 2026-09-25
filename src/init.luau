@@ -135,56 +135,45 @@ local ICON_GUESS = {
 	Info = { "info", "information", "notice", "help" },
 }
 
-local ICON_MAP = {}
-for k, v in ASSET do ICON_MAP[string.lower(k)] = v end
-for target, aliases in ICON_GUESS do
-	local asset = ASSET[target]
-	if asset then
-		for _, alias in aliases do ICON_MAP[string.lower(alias)] = asset end
+local function buildIconMap(source)
+	local map = {}
+	for k, v in source do map[string.lower(k)] = v end
+	for target, aliases in ICON_GUESS do
+		local asset = source[target]
+		if asset then
+			for _, alias in aliases do map[string.lower(alias)] = asset end
+		end
 	end
+	return map
 end
 
-local TEXT_ICON_MAP = {}
-for k, v in TEXT_ICONS do TEXT_ICON_MAP[string.lower(k)] = v end
-for target, aliases in ICON_GUESS do
-    local icon = TEXT_ICONS[target]
-    if icon then
-        for _, alias in aliases do TEXT_ICON_MAP[string.lower(alias)] = icon end
-    end
-end
-
-local function resolveTextIcon(id, defaultKind)
-    if id == false or id == "none" or id == "nil" then return "" end
-    local key = (id and id ~= "") and id or defaultKind
-    if not key then return "" end
-    local lower = string.lower(tostring(key))
-    local mapped = TEXT_ICON_MAP[lower]
-    if mapped then return mapped end
-    for word in string.gmatch(lower, "%a+") do
-        if TEXT_ICON_MAP[word] then return TEXT_ICON_MAP[word] end
-    end
-    return TEXT_ICONS[key] or (defaultKind and TEXT_ICONS[defaultKind]) or ""
-end
-
-local function resolveIcon(id, defaultKind)
+local function resolveFrom(id, defaultKind, map, source, numeric)
 	if id == false or id == "none" or id == "nil" then return "" end
-	if not id or id == "" then return defaultKind and ASSET[defaultKind] or "" end
-	if type(id) == "number" then return "rbxassetid://" .. tostring(id) end
-	if type(id) ~= "string" then return "" end
-	local lower = string.lower(id)
-	local mapped = ICON_MAP[lower]
+	if not id or id == "" then return defaultKind and source[defaultKind] or "" end
+	if numeric then
+		if type(id) == "number" then return "rbxassetid://" .. tostring(id) end
+		if type(id) ~= "string" then return "" end
+	end
+	local lower = string.lower(tostring(id))
+	local mapped = map[lower]
 	if mapped then return mapped end
 	for word in string.gmatch(lower, "%a+") do
-		if ICON_MAP[word] then return ICON_MAP[word] end
+		if map[word] then return map[word] end
 	end
-	if tonumber(id) and not string.find(id, "://", 1, true) then
-		return "rbxassetid://" .. id
+	if numeric then
+		if tonumber(id) and not string.find(id, "://", 1, true) then return "rbxassetid://" .. id end
+		return id
 	end
-	return id
+	return source[id] or (defaultKind and source[defaultKind]) or ""
 end
 
-local function isLight(c) return (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) > 0.5 end
+local ICON_MAP = buildIconMap(ASSET)
+local TEXT_ICON_MAP = buildIconMap(TEXT_ICONS)
 
+local function resolveIcon(id, defaultKind) return resolveFrom(id, defaultKind, ICON_MAP, ASSET, true) end
+local function resolveTextIcon(id, defaultKind) return resolveFrom(id, defaultKind, TEXT_ICON_MAP, TEXT_ICONS, false) end
+
+local function isLight(c) return (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) > 0.5 end
 local function validateTheme(t)
 	if type(t) ~= "table" then warn("[Kvant] Theme must be a table"); return false end
 	local missing = {}
@@ -304,12 +293,13 @@ local function isTextLong(str, textSize, maxWidth)
 	return TextService:GetTextSize(str, textSize, Enum.Font.Roboto, Vector2.new(1e5, 1e5)).X > maxWidth
 end
 
-local function valuesEqual(a, b)
-	if a == b then return true end
-	if type(a) ~= "table" or type(b) ~= "table" then return false end
-	for k, v in a do if b[k] ~= v then return false end end
-	for k, v in b do if a[k] ~= v then return false end end
-	return true
+  local function valuesEqual(a, b)
+  	if a == b then return true end
+  	if type(a) ~= "table" or type(b) ~= "table" then return false end
+  	local n = 0
+  	for k, v in a do if b[k] ~= v then return false end; n += 1 end
+  	for _ in b do n -= 1 end
+  	return n == 0
 end
 
 local function corner(p, r)
@@ -968,12 +958,6 @@ function ContainerMethods:Section(title, collapsed, bld)
 			subFrame.AutomaticSize = Enum.AutomaticSize.None
 			subFrame.Size = UDim2.new(1, 0, 0, 0)
 			local targetH = cl.AbsoluteContentSize.Y
-			if targetH <= 0 then
-				for _, ch in subFrame:GetChildren() do
-					if ch:IsA("GuiObject") and ch.Visible then targetH += ch.AbsoluteSize.Y + cl.Padding.Offset end
-				end
-				if targetH > 0 then targetH -= cl.Padding.Offset end
-			end
 			local t = TweenService:Create(subFrame, Library.Config.Motion.Normal, { Size = UDim2.new(1, 0, 0, targetH) })
 			t:Play()
 			t.Completed:Once(function()
@@ -1658,6 +1642,34 @@ function Library:CreateWindow(opt)
 		return inst
 	end
 
+	function win.MakeIcon(id, defaultKind, props, colorKey, isButton, trackVisibility, pairedLabel, gap)
+		local p = table.clone(props or {})
+		local prop = win.secure and "TextColor3" or "ImageColor3"
+		if win.secure then
+			p.FontFace = F.Icons
+			p.Text = resolveTextIcon(id, defaultKind)
+			p.TextXAlignment = p.TextXAlignment or Enum.TextXAlignment.Center
+		else
+			p.TextSize, p.TextXAlignment = nil, nil
+			p.Image = resolveIcon(id, defaultKind)
+		end
+		local class = win.secure and (isButton and "TextButton" or "TextLabel") or (isButton and "ImageButton" or "ImageLabel")
+		local inst = win.Make(class, p, colorKey and { [prop] = colorKey } or nil)
+		if trackVisibility or pairedLabel then
+			local shown = win.secure and (inst.Text ~= "") or (inst.Image ~= "")
+			local function sync()
+				local show = shown and win.iconsOn
+				inst.Visible = show
+				if pairedLabel then
+					pairedLabel.Size = UDim2.new(pairedLabel.Size.X.Scale, show and -gap or 0, pairedLabel.Size.Y.Scale, pairedLabel.Size.Y.Offset)
+				end
+			end
+			table.insert(win.icons, { inst = inst, sync = sync })
+			sync()
+		end
+		return inst
+	end
+
 	function win.Stroke(p, colKey, trans, triggerBtn, transHover)
 		local s = Instance.new("UIStroke")
 		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -1711,19 +1723,18 @@ function Library:CreateWindow(opt)
 
 	function win.NewIndicator(parent, isDropdown)
 		local holder = win.Make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(0, 14, 0, 14), AnchorPoint = isDropdown and Vector2.new(1, 0.5) or Vector2.new(0.5, 0.5), Position = isDropdown and UDim2.new(1, -7, 0.5, 0) or UDim2.new(0.5, 0, 0.5, 0), Parent = parent })
-        local img, txt
-
-        if win.secure then
-            txt = win.Make("TextLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(1, 0, 1, 0), FontFace = F.Icons, Text = "", TextSize = T.Small, TextXAlignment = Enum.TextXAlignment.Center, Visible = true, Parent = holder }, { TextColor3 = "SubText" })
-        else
-            img = win.Make("ImageLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 12, 0, 12), Image = ASSET.Dropdown, Visible = win.iconsOn, Parent = holder }, { ImageColor3 = "SubText" })
-            txt = win.Make("TextLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(1, 0, 1, 0), FontFace = F.Icons, Text = "", TextSize = T.Small, TextXAlignment = Enum.TextXAlignment.Center, Visible = not win.iconsOn, Parent = holder }, { TextColor3 = "SubText" })
-            table.insert(win.indicators, { img = img, txt = txt, isDropdown = isDropdown })
-        end
+        local icon = win.MakeIcon(nil, "Dropdown", {
+            AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = win.secure and UDim2.new(1, 0, 1, 0) or UDim2.new(0, 12, 0, 12),
+            TextSize = T.Small, Parent = holder,
+        }, "SubText")
 
 		local function setOpen(open)
-            if img then win.Tween(img, Motion.Normal, { Rotation = isDropdown and (open and 180 or 0) or (open and 0 or -90) }) end
-			txt.Text = isDropdown and (open and TEXT_ICONS.Small_Up or TEXT_ICONS.Small_Down) or (open and TEXT_ICONS.Large_Down or TEXT_ICONS.Large_Right)
+            if win.secure then
+                icon.Text = isDropdown and (open and TEXT_ICONS.Small_Up or TEXT_ICONS.Small_Down) or (open and TEXT_ICONS.Large_Down or TEXT_ICONS.Large_Right)
+            else
+                win.Tween(icon, Motion.Normal, { Rotation = isDropdown and (open and 180 or 0) or (open and 0 or -90) })
+            end
 		end
         setOpen(false)
 		return holder, setOpen
@@ -1892,60 +1903,44 @@ function Library:CreateWindow(opt)
 	local ctrlList = Instance.new("UIListLayout", controls)
 	ctrlList.FillDirection, ctrlList.VerticalAlignment, ctrlList.HorizontalAlignment, ctrlList.SortOrder, ctrlList.Padding = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, Enum.HorizontalAlignment.Right, Enum.SortOrder.LayoutOrder, UDim.new(0, 10)
 
-	local searchBtn, settingsBtn, minBtn, closeBtn
-	if secure then
-		searchBtn = win.Make("TextButton", { Size = UDim2.new(0, 20, 0, 20), BackgroundTransparency = 1, FontFace = F.Icons, Text = TEXT_ICONS.Search, TextSize = T.Label, Visible = searchEnabled, LayoutOrder = 0, Parent = controls }, { TextColor3 = "Icon" })
-		settingsBtn = win.Make("TextButton", { Size = UDim2.new(0, 20, 0, 20), BackgroundTransparency = 1, FontFace = F.Icons, Text = TEXT_ICONS.Settings, TextSize = T.Label, LayoutOrder = 1, Parent = controls }, { TextColor3 = "Icon" })
-		minBtn = win.Make("TextButton", { Size = UDim2.new(0, 20, 0, 20), BackgroundTransparency = 1, FontFace = F.Icons, Text = TEXT_ICONS.Minimize, TextSize = T.Label, LayoutOrder = 2, Parent = controls }, { TextColor3 = "Icon" })
-		closeBtn = win.Make("TextButton", { Size = UDim2.new(0, 22, 0, 22), BackgroundTransparency = 1, FontFace = F.Icons, Text = TEXT_ICONS.Close, TextSize = T.Title, Visible = closeBtnDefault, LayoutOrder = 3, Parent = controls }, { TextColor3 = "Icon" })
-	else
-		searchBtn = win.Make("ImageButton", { Size = UDim2.new(0, 20, 0, 20), Image = ASSET.Search, Visible = searchEnabled, LayoutOrder = 0, Parent = controls }, { ImageColor3 = "Icon" })
-		settingsBtn = win.Make("ImageButton", { Size = UDim2.new(0, 20, 0, 20), Image = ASSET.Settings, LayoutOrder = 1, Parent = controls }, { ImageColor3 = "Icon" })
-		minBtn = win.Make("ImageButton", { Size = UDim2.new(0, 20, 0, 20), Image = ASSET.Minimize, LayoutOrder = 2, Parent = controls }, { ImageColor3 = "Icon" })
-		closeBtn = win.Make("ImageButton", { Size = UDim2.new(0, 22, 0, 22), Image = ASSET.Close, Visible = closeBtnDefault, LayoutOrder = 3, Parent = controls }, { ImageColor3 = "Icon" })
-	end
+	-- topbar buttons
+	local searchBtn = win.MakeIcon(nil, "Search", { Size = UDim2.new(0, 20, 0, 20), BackgroundTransparency = 1, TextSize = T.Label, Visible = searchEnabled, LayoutOrder = 0, Parent = controls }, "Icon", true)
+	local settingsBtn = win.MakeIcon(nil, "Settings", { Size = UDim2.new(0, 20, 0, 20), BackgroundTransparency = 1, TextSize = T.Label, LayoutOrder = 1, Parent = controls }, "Icon", true)
+	local minBtn = win.MakeIcon(nil, "Minimize", { Size = UDim2.new(0, 20, 0, 20), BackgroundTransparency = 1, TextSize = T.Label, LayoutOrder = 2, Parent = controls }, "Icon", true)
+	local closeBtn = win.MakeIcon(nil, "Close", { Size = UDim2.new(0, 22, 0, 22), BackgroundTransparency = 1, TextSize = T.Title, Visible = closeBtnDefault, LayoutOrder = 3, Parent = controls }, "Icon", true)
     for _, b in { searchBtn, settingsBtn, minBtn, closeBtn } do if b then win.HoverIcon(b) end end
 
     local defaultPillPos = UDim2.new(0.5, 0, 0.04, 0)
 	makeDraggable(main, topbar, "_MainPos")
-	local grip = corner(win.Make("TextButton", { Size = UDim2.new(0, 52, 0, 6), Parent = main }, { BackgroundColor3 = "Stroke" }), 3)
+	local gripHit = win.Make("TextButton", { Size = UDim2.new(0, 64, 0, 22), BackgroundTransparency = 1, Parent = main })
+	local grip = corner(win.Make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+		Size = UDim2.new(0, 52, 0, 5), Parent = gripHit,
+	}, { BackgroundColor3 = "Stroke" }), 3)
 
-	win.OnHover(grip,
-		function() win.Tween(grip, Motion.Fast, { BackgroundColor3 = Library._theme.Accent }) end,
-		function() win.Tween(grip, Motion.Fast, { BackgroundColor3 = Library._theme.Stroke }) end
+	win.OnHover(gripHit,
+		function() win.Tween(grip, Motion.Fast, { BackgroundColor3 = Library._theme.Accent, Size = UDim2.new(0, 52, 0, 5) }) end,
+		function() win.Tween(grip, Motion.Fast, { BackgroundColor3 = Library._theme.Stroke, Size = UDim2.new(0, 44, 0, 5) }) end
 	)
 	local function updateGrip()
 		local screen = gui.AbsoluteSize
 		local isHigh = main.AbsolutePosition.Y < (screen.Y * 0.5)
-		grip.AnchorPoint = Vector2.new(0.5, isHigh and 0 or 1)
-		grip.Position = UDim2.new(0.5, 0, isHigh and 1 or 0, isHigh and 6 or -6)
+		gripHit.AnchorPoint = Vector2.new(0.5, isHigh and 0 or 1)
+		gripHit.Position = UDim2.new(0.5, 0, isHigh and 1 or 0, isHigh and 4 or -4)
 	end
 
 	main:GetPropertyChangedSignal("Position"):Connect(updateGrip)
-	makeDraggable(main, grip, "_MainPos")
+	makeDraggable(main, gripHit, "_MainPos")
 	updateGrip()
 
 	local isCirclePill = opt.PillCircle == true
 	local pill
-
 	if isCirclePill then
         pill = corner(win.Make("TextButton", { Visible = false, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.04, 0), Size = UDim2.new(0, 36, 0, 36), Parent = gui }, { BackgroundColor3 = "Secondary" }), 18)
-        local pillIcon
-        if win.secure then
-            local iconStr = resolveTextIcon(opt.PillIcon or opt.Icon, "Kvant")
-            pillIcon = win.Make("TextLabel", {
-                AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
-                Size = UDim2.new(0, 20, 0, 20), FontFace = F.Icons, Text = iconStr,
-                TextSize = T.Label, TextXAlignment = Enum.TextXAlignment.Center, Parent = pill,
-            }, { TextColor3 = "Icon" })
-            local function sync() pillIcon.Visible = iconStr ~= "" and win.iconsOn end
-            table.insert(win.icons, { inst = pillIcon, sync = sync })
-            sync()
-        else
-            pillIcon = win.Mkicon(opt.PillIcon or opt.Icon, "Kvant", pill, UDim2.new(0, 20, 0, 20))
-            pillIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-            pillIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-        end
+        local pillIcon = win.MakeIcon(opt.PillIcon or opt.Icon, "Kvant", {
+            AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0, 20, 0, 20), TextSize = T.Label, Parent = pill,
+        }, "Icon", false, true)
         win.Stroke(pill, "Stroke", 0.6, pill, 0.2)
         local iconProp = win.secure and "TextColor3" or "ImageColor3"
         win.OnHover(pill, function() win.Tween(pillIcon, Motion.Fast, { [iconProp] = Library._theme.Accent }) end, function() win.Tween(pillIcon, Motion.Fast, { [iconProp] = Library._theme.Icon }) end)
@@ -1955,20 +1950,9 @@ function Library:CreateWindow(opt)
         local pillConstraint = Instance.new("UISizeConstraint", pill); pillConstraint.MinSize, pillConstraint.MaxSize = Vector2.new(PILL_MIN_W, 36), Vector2.new(PILL_MAX_W, 36)
         local pillLayout = Instance.new("UIListLayout", pill)
         pillLayout.FillDirection, pillLayout.HorizontalAlignment, pillLayout.VerticalAlignment, pillLayout.Padding = Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center, UDim.new(0, 8)
-
-        local pillIcon
-        if win.secure then
-            local iconStr = resolveTextIcon(opt.PillIcon or opt.Icon, "Kvant")
-            pillIcon = win.Make("TextLabel", {
-                LayoutOrder = 1, Size = UDim2.new(0, 16, 0, 16), FontFace = F.Icons, Text = iconStr,
-                TextSize = T.Label, TextXAlignment = Enum.TextXAlignment.Center, Parent = pill,
-            }, { TextColor3 = "Icon" })
-            local function sync() pillIcon.Visible = iconStr ~= "" and win.iconsOn end
-            table.insert(win.icons, { inst = pillIcon, sync = sync })
-            sync()
-        else
-            pillIcon = win.Mkicon(opt.PillIcon or opt.Icon, "Kvant", pill, UDim2.new(0, 16, 0, 16))
-        end
+        local pillIcon = win.MakeIcon(opt.PillIcon or opt.Icon, "Kvant", {
+            LayoutOrder = 1, Size = UDim2.new(0, 16, 0, 16), TextSize = T.Label, Parent = pill,
+        }, "Icon", false, true)
 
         local pillLabel = win.Make("TextLabel", { LayoutOrder = 2, Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X, Text = opt.Name or "Kvant", TextSize = T.Label, TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.AtEnd, Parent = pill }, { TextColor3 = "Text" })
         local labelConstraint = Instance.new("UISizeConstraint", pillLabel); labelConstraint.MaxSize = Vector2.new(220, math.huge)
@@ -2079,14 +2063,8 @@ function Library:CreateWindow(opt)
 
 	local searchOverlay = win.Stroke(corner(win.Make("Frame", { Size = UDim2.new(1, -24, 0, SEARCH_BAR_H), Position = UDim2.new(0, 12, 0, 48), Visible = false, ZIndex = 30, Parent = main }, { BackgroundColor3 = "Secondary" }), 8), "Stroke", 0.4)
 	local soStroke = searchOverlay:FindFirstChildOfClass("UIStroke")
-	local searchCloseBtn
-	if secure then
-		win.Make("TextLabel", { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 10, 0.5, -8), FontFace = F.Icons, Text = TEXT_ICONS.Search, TextSize = T.Small, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 31, Parent = searchOverlay }, { TextColor3 = "SubText" })
-		searchCloseBtn = win.Make("TextButton", { Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(1, -26, 0.5, -8), FontFace = F.Icons, Text = TEXT_ICONS.Close, TextSize = T.Body, BackgroundTransparency = 1, ZIndex = 32, Parent = searchOverlay }, { TextColor3 = "SubText" })
-	else
-		win.Make("ImageLabel", { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 10, 0.5, -8), Image = ASSET.Search, ZIndex = 31, Parent = searchOverlay }, { ImageColor3 = "SubText" })
-		searchCloseBtn = win.Make("ImageButton", { Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(1, -26, 0.5, -8), Image = ASSET.Close, BackgroundTransparency = 1, ZIndex = 32, Parent = searchOverlay }, { ImageColor3 = "SubText" })
-	end
+	win.MakeIcon(nil, "Search", { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 10, 0.5, -8), TextSize = T.Small, ZIndex = 31, Parent = searchOverlay }, "SubText")
+	local searchCloseBtn = win.MakeIcon(nil, "Close", { Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(1, -26, 0.5, -8), TextSize = T.Body, BackgroundTransparency = 1, ZIndex = 32, Parent = searchOverlay }, "SubText", true)
     if searchCloseBtn then win.HoverIcon(searchCloseBtn) end
 
 	local autocompleteLbl = win.Make("TextLabel", { Text = "", Size = UDim2.new(1, -56, 1, 0), Position = UDim2.new(0, 32, 0, 0), TextSize = T.Body, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 31, Parent = searchOverlay }, { TextColor3 = "SubText" })
@@ -2247,12 +2225,7 @@ function Library:CreateWindow(opt)
 		hl.FillDirection, hl.VerticalAlignment = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center
 
 		win.Make("TextLabel", { Size = UDim2.new(1, -20, 1, 0), FontWeight = "Bold", TextSize = T.Label, Text = statusOpt.Title or "Status", Parent = header }, { TextColor3 = "Text" })
-		local chevron
-		if secure then
-			chevron = win.Make("TextLabel", { Size = UDim2.new(0, 14, 0, 14), FontFace = F.Icons, Text = TEXT_ICONS.Small_Down, TextSize = T.Small, TextXAlignment = Enum.TextXAlignment.Center, Parent = header }, { TextColor3 = "SubText" })
-		else
-			chevron = win.Make("ImageLabel", { Size = UDim2.new(0, 14, 0, 14), Image = ASSET.Dropdown, Parent = header }, { ImageColor3 = "SubText" })
-		end
+		local chevron = win.MakeIcon(nil, "Dropdown", { Size = UDim2.new(0, 14, 0, 14), TextSize = T.Small, Parent = header }, "SubText")
 
 		local content = win.Make("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1, Parent = root })
 		local cl = Instance.new("UIListLayout", content)
@@ -2357,26 +2330,7 @@ function Library:CreateWindow(opt)
 			TextColor3 = function(th) return activeIndex == tabIndex and th.AccentText or th.SubText end,
 		})
 
-        local tabIconInst
-        if win.secure then
-            local iconStr = resolveTextIcon(tabIcon or (autoTabIcons and tabName or nil), isSettings and "Settings" or "Tab")
-            tabIconInst = win.Make("TextLabel", {
-                LayoutOrder = 1, Size = UDim2.new(0, 16, 0, 16), FontFace = F.Icons,
-                Text = iconStr, TextSize = T.Label, TextXAlignment = Enum.TextXAlignment.Center, Parent = btn,
-            }, {
-                TextColor3 = function(th) return activeIndex == tabIndex and th.AccentText or th.SubText end,
-            })
-            local function sync()
-                local show = iconStr ~= "" and win.iconsOn
-                tabIconInst.Visible = show
-                if isSide then label.Size = UDim2.new(1, show and -24 or 0, 1, 0) end
-            end
-            table.insert(win.icons, { inst = tabIconInst, sync = sync })
-            sync()
-        else
-            tabIconInst = win.Mkicon(tabIcon or (autoTabIcons and tabName or nil), "Tab", btn, UDim2.new(0, 16, 0, 16), false, isSide and label or nil, 8)
-        end
-
+        local tabIconInst = win.MakeIcon(tabIcon or (autoTabIcons and tabName or nil),isSettings and "Settings" or "Tab",{ LayoutOrder = 1, Size = UDim2.new(0, 16, 0, 16), TextSize = T.Label, Parent = btn },win.secure and function(th) return activeIndex == tabIndex and th.AccentText or th.SubText end or "Icon",false, true,isSide and label or nil, 8)
 		local page = win.Make("ScrollingFrame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Visible = false, AutomaticCanvasSize = Enum.AutomaticSize.Y, Parent = pageHolder })
 		win.StyleScroll(page, false)
 		local pl = Instance.new("UIListLayout", page); pl.SortOrder, pl.Padding = Enum.SortOrder.LayoutOrder, UDim.new(0, 10)

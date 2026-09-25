@@ -55,12 +55,13 @@ export type WindowOptions = {
     Icon: string?,
     Dev: boolean?,
     ShowSearch: boolean?,
-    AutoTabIcons: boolean?,
+    AutoIcons: boolean?,
     Pill: string?,
     PillStyle: string?,
     PillCircle: boolean?,
     PillIcon: string?,
     Globals: boolean?,
+    Secure: boolean?,
     Builder: ((window: Window) -> ())?,
 }
 
@@ -76,6 +77,7 @@ export type StatusHandle = {
     Get: (self: StatusHandle, key: string) -> string?,
     Remove: (self: StatusHandle, key: string) -> (),
     Clear: (self: StatusHandle) -> (),
+    Content: (self: StatusHandle, builder: (any) -> ()) -> (),
     Destroy: (self: StatusHandle) -> (),
 }
 
