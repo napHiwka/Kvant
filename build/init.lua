@@ -26,3 +26,39 @@ assert(o, "cannot write " .. out)
 o:write(header .. code)
 o:close()
 print("built " .. out .. " (" .. #code .. " bytes)")
+
+-- changelog
+local ignore = { chore = true, ops = true, build = true, docs = true }
+local p = io.popen("git log --oneline")
+if p then
+	local cl = { "# Changelog\n" }
+	local cur_section, cur_commits = nil, {}
+	local function flush()
+		if cur_section and #cur_commits > 0 then
+			table.insert(cl, cur_section)
+			for _, c in ipairs(cur_commits) do table.insert(cl, c) end
+			table.insert(cl, "")
+		end
+		cur_commits = {}
+	end
+
+	for hash, msg in p:read("*a"):gmatch("(%x+)%s+([^\r\n]+)") do
+		local ver = msg:match("^dist:%s*(.+)")
+		if ver then
+			flush()
+			cur_section = "## " .. ver
+		elseif not ignore[msg:match("^(%a+)")] then
+			if not cur_section then cur_section = "## " .. version .. " (current)" end
+			table.insert(cur_commits, "- " .. hash .. " " .. msg)
+		end
+	end
+	flush()
+	p:close()
+
+	local cf = io.open("CHANGELOG.md", "w")
+	if cf then
+		cf:write(table.concat(cl, "\n"))
+		cf:close()
+		print("updated CHANGELOG.md")
+	end
+end
