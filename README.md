@@ -38,7 +38,7 @@ Kvant:CreateWindow({
     Font = "Roboto", -- "Roboto" | "Ubuntu" | "Inter"
     Icon = "kvant", -- icon name, asset id, or rbxassetid://
     ShowSearch = true, -- show search button
-    AutoTabIcons = false, -- auto-guess icons from tab names
+    AutoIcons = false, -- auto-guess icons from tab names
     PillCircle = false, -- round minimized pill (only icon)
     Globals = false, -- register constructors as globals
     -- Size, MinSize, MaxSize: UDim2 / Vector2
@@ -163,6 +163,6 @@ s:Destroy()
 - A numeric asset ID string (`"107150227368485"`)
 - A full URI (`"rbxassetid://107150227368485"`)
 
-`AutoTabIcons = true` guesses an icon from the tab name automatically.
+`AutoIcons = true` guesses an icon from the tab name automatically.
 
 # License - MIT
